@@ -259,6 +259,31 @@ def rodar(itens, nome, ate=None, bloco=4, completar=False, com=()):
     return E
 
 
+# 03/11 ~19h (ele, na rua: «vai rodando com o tandera o que tiver pra rodar»): UMA fila por vez. A trava GPU_EM_USO deixa passar quem
+# é «tandera», então uma fila ligada à mão de noite e a da tarefa das 01h rodavam juntas na mesma placa. A fila que chega com outra viva
+# não começa (a viva já puxa o que falta do checklist); a marca de uma fila que morreu sem apagar é ignorada.
+FILA_VIVA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "trabalho", "filas", "FILA_RODANDO.json")
+
+
+def _viva(pid):
+    if os.name != "nt":
+        try: os.kill(pid, 0); return True
+        except OSError: return False
+    import ctypes
+    h = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)        # PROCESS_QUERY_LIMITED_INFORMATION
+    if not h: return False
+    codigo = ctypes.c_ulong()
+    ok = ctypes.windll.kernel32.GetExitCodeProcess(h, ctypes.byref(codigo))
+    ctypes.windll.kernel32.CloseHandle(h)
+    return bool(ok) and codigo.value == 259                             # STILL_ACTIVE
+
+
+def _outra_fila():
+    try: m = json.load(open(FILA_VIVA, encoding="utf-8"))
+    except (OSError, ValueError): return None
+    return m if m.get("pid") != os.getpid() and _viva(int(m.get("pid") or 0)) else None
+
+
 def main(argv=None):
     import argparse
     ap = argparse.ArgumentParser(prog="tandera fila")
@@ -282,9 +307,18 @@ def main(argv=None):
     for i in itens:
         if i["pista"] not in PISTAS: raise SystemExit(f"pista desconhecida: {i['pista']}")
         if not os.path.exists(i["arquivo"]): raise SystemExit(f"não existe: {i['arquivo']}")
+    outra = _outra_fila()
+    if outra:
+        base.log(f"já tem uma fila rodando ({outra.get('nome')}, pid {outra.get('pid')}, desde {outra.get('desde')}): esta não começa")
+        return
+    os.makedirs(os.path.dirname(FILA_VIVA), exist_ok=True)
+    json.dump({"pid": os.getpid(), "nome": nome, "desde": time.strftime("%Y-%m-%d %H:%M:%S")}, open(FILA_VIVA, "w", encoding="utf-8"))
     try:
         rodar(itens, nome, x.ate, x.bloco, completar=x.checklist, com=com)
     finally:
+        try:
+            if json.load(open(FILA_VIVA, encoding="utf-8")).get("pid") == os.getpid(): os.remove(FILA_VIVA)
+        except (OSError, ValueError): pass
         # 03/11 (Kakashi 14:15, ele: «o que que acabou se isso aqui não atualizou ainda... atualizar automático, né»): toda fila, ao parar
         # (acabou, deu a hora, Premiere, erro), refaz o checklist — o painel mostra o que ela fez sem ninguém apertar «atualizar»
         try:
