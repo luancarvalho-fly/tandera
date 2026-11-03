@@ -1,0 +1,165 @@
+{
+ "sem_som": false,
+ "idioma": "pt",
+ "modelo": "mobiuslabsgmbh/faster-whisper-large-v3-turbo int8 (processador)",
+ "segmentos": [
+  {
+   "ini": 2.24,
+   "fim": 6.14,
+   "txt": "Pra quem não tá ligado, minha moto que viaja no tempo deu brayblade"
+  },
+  {
+   "ini": 6.14,
+   "fim": 8.98,
+   "txt": "E o cientista vai me ajudar em troca de uma relíquia"
+  }
+ ],
+ "palavras": [
+  {
+   "p": "Pra",
+   "ini": 2.473,
+   "fim": 2.703,
+   "como": "mms"
+  },
+  {
+   "p": "quem",
+   "ini": 2.784,
+   "fim": 2.944,
+   "como": "mms"
+  },
+  {
+   "p": "não",
+   "ini": 2.965,
+   "fim": 3.085,
+   "como": "mms"
+  },
+  {
+   "p": "tá",
+   "ini": 3.145,
+   "fim": 3.226,
+   "como": "mms"
+  },
+  {
+   "p": "ligado,",
+   "ini": 3.286,
+   "fim": 3.857,
+   "como": "mms"
+  },
+  {
+   "p": "minha",
+   "ini": 3.848,
+   "fim": 4.009,
+   "como": "mms"
+  },
+  {
+   "p": "moto",
+   "ini": 4.09,
+   "fim": 4.331,
+   "como": "mms"
+  },
+  {
+   "p": "que",
+   "ini": 4.391,
+   "fim": 4.451,
+   "como": "mms"
+  },
+  {
+   "p": "viaja",
+   "ini": 4.511,
+   "fim": 4.913,
+   "como": "mms"
+  },
+  {
+   "p": "no",
+   "ini": 4.994,
+   "fim": 5.054,
+   "como": "mms"
+  },
+  {
+   "p": "tempo",
+   "ini": 5.134,
+   "fim": 5.435,
+   "como": "mms"
+  },
+  {
+   "p": "deu",
+   "ini": 5.516,
+   "fim": 5.656,
+   "como": "mms"
+  },
+  {
+   "p": "brayblade",
+   "ini": 5.677,
+   "fim": 6.339,
+   "como": "mms"
+  },
+  {
+   "p": "E",
+   "ini": 6.303,
+   "fim": 6.323,
+   "como": "mms"
+  },
+  {
+   "p": "o",
+   "ini": 6.403,
+   "fim": 6.423,
+   "como": "mms"
+  },
+  {
+   "p": "cientista",
+   "ini": 6.524,
+   "fim": 7.067,
+   "como": "mms"
+  },
+  {
+   "p": "vai",
+   "ini": 7.127,
+   "fim": 7.248,
+   "como": "mms"
+  },
+  {
+   "p": "me",
+   "ini": 7.288,
+   "fim": 7.349,
+   "como": "mms"
+  },
+  {
+   "p": "ajudar",
+   "ini": 7.389,
+   "fim": 7.82,
+   "como": "mms"
+  },
+  {
+   "p": "em",
+   "ini": 7.832,
+   "fim": 7.912,
+   "como": "mms"
+  },
+  {
+   "p": "troca",
+   "ini": 8.013,
+   "fim": 8.294,
+   "como": "mms"
+  },
+  {
+   "p": "de",
+   "ini": 8.335,
+   "fim": 8.375,
+   "como": "mms"
+  },
+  {
+   "p": "uma",
+   "ini": 8.435,
+   "fim": 8.556,
+   "como": "mms"
+  },
+  {
+   "p": "relíquia",
+   "ini": 8.636,
+   "fim": 9.001,
+   "como": "mms"
+  }
+ ],
+ "descartados": [],
+ "nota": "tempos do arquivo (sem descontar a folga do AAC: ver preparo.folga_aac_s)"
+}

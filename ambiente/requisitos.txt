@@ -1,0 +1,41 @@
+# O ambiente do Tandera (apps\TANDERA\.venv) — 01/11/2026. Mesmas versões da REGUA onde coincidem (placa RTX 5070 = CUDA 12.8).
+# Instalar: .venv\Scripts\python.exe -m uv pip install --python .venv\Scripts\python.exe -r ambiente\requisitos.txt
+#           --override ambiente\travar.txt --extra-index-url https://download.pytorch.org/whl/cu128 --index-strategy unsafe-best-match
+torch==2.11.0+cu128
+torchaudio==2.11.0+cu128
+torchvision==0.26.0+cu128
+transformers==5.20.1
+accelerate
+safetensors
+huggingface_hub
+numpy==2.5.2
+scipy
+soundfile
+soxr
+librosa
+pillow
+opencv-python==5.0.0.93
+onnxruntime-gpu==1.23.2
+faster-whisper==1.2.1
+beat-this==1.1.0
+transnetv2-pytorch==1.0.5
+praat-parselmouth
+mediapipe==1.1.1
+hsemotion-onnx==0.3.1
+scikit-image
+rank-bm25
+qwen-omni-utils==0.0.9
+decord==0.6.0
+timm
+einops
+bitsandbytes
+gdown
+psutil
+nvidia-ml-py
+requests
+# 01/11: o código do Sapiens2 (peça «corpo», repo em REGUA\repos\sapiens2) pede estes (versões iguais às da REGUA)
+termcolor==3.3.0
+iopath==0.1.10
+portalocker==4.4.1
+prettytable==3.18.0
+audioread

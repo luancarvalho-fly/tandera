@@ -1,0 +1,113 @@
+{
+ "_fonte": "As PISTAS do Luan (01/11/2026; ele: «um motor só... você sabe quando desligar e ligar um pistão»). Cada GRUPO do lote roda UMA receita: só as peças listadas ligam; peça desligada não carrega modelo nem placa. O montar_lote.py lê isto (--receitas). Os nomes dos grupos do PC dele eram de cliente: aqui são genéricos — troque pelos seus. Peça que só existe no perfil pc (ex.: efeitos) fica fora do lote do servidor, com aviso.",
+ "receitas": {
+  "tutorial": {
+   "grupos": [
+    "tutorial"
+   ],
+   "pecas": [
+    "fala",
+    "texto",
+    "rotulos"
+   ],
+   "stems": null,
+   "idioma": "en",
+   "so_nos_exemplos": {
+    "pecas": [
+     "cortes",
+     "separacao",
+     "musica",
+     "batida",
+     "sinal",
+     "ovis",
+     "olho"
+    ],
+    "como": "1ª passada no vídeo inteiro (fala no ms, texto da tela, rótulos CED, que dão a chance de MÚSICA a cada 0,5 s). Janela de EXEMPLO = trecho com música (CED musica >= 0,5) ou onde a fala chama o exemplo (listen / before / after / check this out / here is / with / without), juntando vãos < 3 s e com 2 s de folga. A 2ª passada (as peças pesadas) roda SÓ nessas janelas. Ele, 01/11 ~21h55: «por que você usaria o separador de voz e música? É só em alguns lugares... tem que pensar com a cabeça». ATENÇÃO: o corte das janelas foi feito por um script à parte na rodada dele no RunPod; NÃO está no motor (o montar_lote.py só lê 'pecas')."
+   }
+  },
+  "plexus-stems": {
+   "grupos": [
+    "plexus (com stems)"
+   ],
+   "pecas": [
+    "cortes",
+    "fala",
+    "separacao",
+    "musica",
+    "batida",
+    "rotulos",
+    "sinal",
+    "efeitos"
+   ],
+   "stems": {
+    "voz": [
+     "PLEXUS",
+     "VOZES"
+    ],
+    "musica": [
+     "MUSICAS"
+    ],
+    "efeitos": [
+     "SFX",
+     "DESIGNED"
+    ]
+   },
+   "idioma": "pt",
+   "nota": "separação = os stems da mixagem (custa 0); efeitos fica pro PC (precisa da biblioteca de efeitos)."
+  },
+  "plexus-sem-stems": {
+   "grupos": [
+    "plexus (sem stems)"
+   ],
+   "pecas": [
+    "cortes",
+    "fala",
+    "separacao",
+    "musica",
+    "batida",
+    "rotulos",
+    "sinal",
+    "efeitos"
+   ],
+   "stems": null,
+   "idioma": "pt"
+  },
+  "trailer": {
+   "grupos": [
+    "trailer"
+   ],
+   "pecas": [
+    "cortes",
+    "fala",
+    "separacao",
+    "musica",
+    "batida",
+    "rotulos",
+    "sinal",
+    "efeitos"
+   ],
+   "stems": null,
+   "idioma": "en"
+  },
+  "kakashi": {
+   "grupos": [
+    "kakashi"
+   ],
+   "pecas": [
+    "fala",
+    "texto",
+    "olho",
+    "rotulos"
+   ],
+   "stems": {
+    "voz": "fala.wav",
+    "resto": "pc.wav"
+   },
+   "video": "tela.mp4",
+   "idioma": "pt",
+   "nota": "uma gravação do KAKASHI analisada pelo Tandera: sem separação (os stems vêm prontos: o microfone e o som do PC), sem cortes nem batida (é tela gravada). As do painel do Premiere têm audio.wav (não fala.wav)."
+  }
+ },
+ "_olho": "Gemma 4 (~metade do tempo de máquina): liga SÓ em tutorial e kakashi — decisão do Luan em 01/11 ~20h30",
+ "_desligado_em_todas": "rostos, boca, corpo, camera, entonacao, imagem, som (CLAP), diario, busca — não servem pro estudo de som (o ovis só no tutorial)"
+}

@@ -1,0 +1,51 @@
+{
+ "duracao_s": 12.0,
+ "fps": 25,
+ "tamanho": "480x270",
+ "cortes_quadro": [
+  75,
+  150,
+  225
+ ],
+ "cortes_s": [
+  3.0,
+  6.0,
+  9.0
+ ],
+ "planos": [
+  "testsrc2 (0–3 s)",
+  "smptehdbars (3–6 s)",
+  "mandelbrot, entrando (6–9 s)",
+  "rgbtestsrc (9–12 s)"
+ ],
+ "batidas_s": [
+  0.0,
+  0.5,
+  1.0,
+  1.5,
+  2.0,
+  2.5,
+  3.0,
+  3.5,
+  4.0,
+  4.5,
+  5.0,
+  5.5,
+  6.0,
+  6.5,
+  7.0,
+  7.5,
+  8.0,
+  8.5,
+  9.0,
+  9.5,
+  10.0,
+  10.5,
+  11.0,
+  11.5
+ ],
+ "bpm": 120,
+ "voz": "o Plexus (vlog V009, 4,6–11,6 s) a partir de 2,0 s até 9,0 s",
+ "texto_esperado": "Pra quem não tá ligado, minha moto que viaja no tempo deu Brayblade. E o cientista vai me ajudar em troca de uma relíquia (o que o Tandera transcreveu no V009; «Brayblade» = «Beyblade» falado rápido)",
+ "obs": "a batida é um bumbo de 60 Hz + clique de 2 kHz que decai a cada 0,5 s; o som do vídeo é AAC (o Tandera mede a folga do AAC, ~21 ms); a voz e a música também vêm separadas (voz.wav, musica.wav) e entram como stems"
+}

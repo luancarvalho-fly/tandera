@@ -1,0 +1,15 @@
+{
+ "sem_som": false,
+ "entregue": {
+  "voz": "voz.wav",
+  "musica": "musica.wav",
+  "resto": "musica.wav"
+ },
+ "avisos": [],
+ "stems": {
+  "voz": "pecas/separacao/entregue-bcc10fed11/voz.wav",
+  "musica": "pecas/separacao/entregue-bcc10fed11/musica.wav",
+  "resto": "pecas/separacao/entregue-bcc10fed11/resto.wav",
+  "mix": "pecas/preparo/som48k.wav"
+ }
+}

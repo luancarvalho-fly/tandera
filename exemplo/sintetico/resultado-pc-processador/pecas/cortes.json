@@ -1,0 +1,47 @@
+{
+ "quadros": 300,
+ "fps": 25.0,
+ "cortes": [
+  75,
+  150,
+  225
+ ],
+ "cortes_s": [
+  3.0,
+  6.0,
+  9.0
+ ],
+ "planos": [
+  [
+   0,
+   75
+  ],
+  [
+   75,
+   150
+  ],
+  [
+   150,
+   225
+  ],
+  [
+   225,
+   300
+  ]
+ ],
+ "autoshot": [
+  75,
+  150,
+  225
+ ],
+ "transnet": [
+  75,
+  150,
+  225
+ ],
+ "so_autoshot": [],
+ "so_transnet": [],
+ "possiveis_pixel": [],
+ "detector": "AutoShot ∪ TransNetV2 (±1 quadro)",
+ "autoshot_em": "CPUExecutionProvider"
+}

@@ -1,0 +1,6 @@
+# nada rebaixa o torch da placa nem troca o onnxruntime da placa pelo de processador (o faster-whisper puxa o «onnxruntime»)
+torch==2.11.0+cu128
+torchaudio==2.11.0+cu128
+torchvision==0.26.0+cu128
+onnxruntime-gpu==1.23.2
+numpy==2.5.2

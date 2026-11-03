@@ -1,0 +1,536 @@
+{
+ "modelo": "mispeech/ced-base",
+ "passo": 0.5,
+ "janela": 1.0,
+ "janelas": [
+  {
+   "t": 0.5,
+   "db": -21.3,
+   "musica": 0.63,
+   "rotulos": [
+    [
+     "Drum machine",
+     0.537
+    ],
+    [
+     "Drum",
+     0.226
+    ],
+    [
+     "Wood block",
+     0.092
+    ],
+    [
+     "Synthesizer",
+     0.087
+    ]
+   ]
+  },
+  {
+   "t": 1.0,
+   "db": -21.3,
+   "musica": 0.64,
+   "rotulos": [
+    [
+     "Drum machine",
+     0.539
+    ],
+    [
+     "Drum",
+     0.228
+    ],
+    [
+     "Wood block",
+     0.092
+    ],
+    [
+     "Synthesizer",
+     0.087
+    ]
+   ]
+  },
+  {
+   "t": 1.5,
+   "db": -21.3,
+   "musica": 0.64,
+   "rotulos": [
+    [
+     "Drum machine",
+     0.539
+    ],
+    [
+     "Drum",
+     0.228
+    ],
+    [
+     "Wood block",
+     0.092
+    ],
+    [
+     "Synthesizer",
+     0.087
+    ]
+   ]
+  },
+  {
+   "t": 2.0,
+   "db": -21.3,
+   "musica": 0.64,
+   "rotulos": [
+    [
+     "Drum machine",
+     0.539
+    ],
+    [
+     "Drum",
+     0.228
+    ],
+    [
+     "Wood block",
+     0.092
+    ],
+    [
+     "Synthesizer",
+     0.087
+    ]
+   ]
+  },
+  {
+   "t": 2.5,
+   "db": -21.3,
+   "musica": 0.64,
+   "rotulos": [
+    [
+     "Drum machine",
+     0.539
+    ],
+    [
+     "Drum",
+     0.228
+    ],
+    [
+     "Wood block",
+     0.092
+    ],
+    [
+     "Synthesizer",
+     0.087
+    ]
+   ]
+  },
+  {
+   "t": 3.0,
+   "db": -21.3,
+   "musica": 0.64,
+   "rotulos": [
+    [
+     "Drum machine",
+     0.539
+    ],
+    [
+     "Drum",
+     0.228
+    ],
+    [
+     "Wood block",
+     0.092
+    ],
+    [
+     "Synthesizer",
+     0.087
+    ]
+   ]
+  },
+  {
+   "t": 3.5,
+   "db": -21.3,
+   "musica": 0.64,
+   "rotulos": [
+    [
+     "Drum machine",
+     0.539
+    ],
+    [
+     "Drum",
+     0.228
+    ],
+    [
+     "Wood block",
+     0.092
+    ],
+    [
+     "Synthesizer",
+     0.087
+    ]
+   ]
+  },
+  {
+   "t": 4.0,
+   "db": -21.3,
+   "musica": 0.64,
+   "rotulos": [
+    [
+     "Drum machine",
+     0.539
+    ],
+    [
+     "Drum",
+     0.228
+    ],
+    [
+     "Wood block",
+     0.092
+    ],
+    [
+     "Synthesizer",
+     0.087
+    ]
+   ]
+  },
+  {
+   "t": 4.5,
+   "db": -21.3,
+   "musica": 0.64,
+   "rotulos": [
+    [
+     "Drum machine",
+     0.539
+    ],
+    [
+     "Drum",
+     0.228
+    ],
+    [
+     "Wood block",
+     0.092
+    ],
+    [
+     "Synthesizer",
+     0.087
+    ]
+   ]
+  },
+  {
+   "t": 5.0,
+   "db": -21.3,
+   "musica": 0.64,
+   "rotulos": [
+    [
+     "Drum machine",
+     0.539
+    ],
+    [
+     "Drum",
+     0.228
+    ],
+    [
+     "Wood block",
+     0.092
+    ],
+    [
+     "Synthesizer",
+     0.087
+    ]
+   ]
+  },
+  {
+   "t": 5.5,
+   "db": -21.3,
+   "musica": 0.64,
+   "rotulos": [
+    [
+     "Drum machine",
+     0.539
+    ],
+    [
+     "Drum",
+     0.228
+    ],
+    [
+     "Wood block",
+     0.092
+    ],
+    [
+     "Synthesizer",
+     0.087
+    ]
+   ]
+  },
+  {
+   "t": 6.0,
+   "db": -21.3,
+   "musica": 0.64,
+   "rotulos": [
+    [
+     "Drum machine",
+     0.539
+    ],
+    [
+     "Drum",
+     0.228
+    ],
+    [
+     "Wood block",
+     0.092
+    ],
+    [
+     "Synthesizer",
+     0.087
+    ]
+   ]
+  },
+  {
+   "t": 6.5,
+   "db": -21.3,
+   "musica": 0.64,
+   "rotulos": [
+    [
+     "Drum machine",
+     0.539
+    ],
+    [
+     "Drum",
+     0.228
+    ],
+    [
+     "Wood block",
+     0.092
+    ],
+    [
+     "Synthesizer",
+     0.087
+    ]
+   ]
+  },
+  {
+   "t": 7.0,
+   "db": -21.3,
+   "musica": 0.64,
+   "rotulos": [
+    [
+     "Drum machine",
+     0.539
+    ],
+    [
+     "Drum",
+     0.228
+    ],
+    [
+     "Wood block",
+     0.092
+    ],
+    [
+     "Synthesizer",
+     0.087
+    ]
+   ]
+  },
+  {
+   "t": 7.5,
+   "db": -21.3,
+   "musica": 0.64,
+   "rotulos": [
+    [
+     "Drum machine",
+     0.539
+    ],
+    [
+     "Drum",
+     0.228
+    ],
+    [
+     "Wood block",
+     0.092
+    ],
+    [
+     "Synthesizer",
+     0.087
+    ]
+   ]
+  },
+  {
+   "t": 8.0,
+   "db": -21.3,
+   "musica": 0.64,
+   "rotulos": [
+    [
+     "Drum machine",
+     0.539
+    ],
+    [
+     "Drum",
+     0.228
+    ],
+    [
+     "Wood block",
+     0.092
+    ],
+    [
+     "Synthesizer",
+     0.087
+    ]
+   ]
+  },
+  {
+   "t": 8.5,
+   "db": -21.3,
+   "musica": 0.64,
+   "rotulos": [
+    [
+     "Drum machine",
+     0.539
+    ],
+    [
+     "Drum",
+     0.228
+    ],
+    [
+     "Wood block",
+     0.092
+    ],
+    [
+     "Synthesizer",
+     0.087
+    ]
+   ]
+  },
+  {
+   "t": 9.0,
+   "db": -21.3,
+   "musica": 0.64,
+   "rotulos": [
+    [
+     "Drum machine",
+     0.539
+    ],
+    [
+     "Drum",
+     0.228
+    ],
+    [
+     "Wood block",
+     0.092
+    ],
+    [
+     "Synthesizer",
+     0.087
+    ]
+   ]
+  },
+  {
+   "t": 9.5,
+   "db": -21.3,
+   "musica": 0.64,
+   "rotulos": [
+    [
+     "Drum machine",
+     0.539
+    ],
+    [
+     "Drum",
+     0.228
+    ],
+    [
+     "Wood block",
+     0.092
+    ],
+    [
+     "Synthesizer",
+     0.087
+    ]
+   ]
+  },
+  {
+   "t": 10.0,
+   "db": -21.3,
+   "musica": 0.64,
+   "rotulos": [
+    [
+     "Drum machine",
+     0.539
+    ],
+    [
+     "Drum",
+     0.228
+    ],
+    [
+     "Wood block",
+     0.092
+    ],
+    [
+     "Synthesizer",
+     0.087
+    ]
+   ]
+  },
+  {
+   "t": 10.5,
+   "db": -21.3,
+   "musica": 0.64,
+   "rotulos": [
+    [
+     "Drum machine",
+     0.539
+    ],
+    [
+     "Drum",
+     0.228
+    ],
+    [
+     "Wood block",
+     0.092
+    ],
+    [
+     "Synthesizer",
+     0.087
+    ]
+   ]
+  },
+  {
+   "t": 11.0,
+   "db": -21.3,
+   "musica": 0.64,
+   "rotulos": [
+    [
+     "Drum machine",
+     0.539
+    ],
+    [
+     "Drum",
+     0.228
+    ],
+    [
+     "Wood block",
+     0.092
+    ],
+    [
+     "Synthesizer",
+     0.087
+    ]
+   ]
+  },
+  {
+   "t": 11.5,
+   "db": -21.3,
+   "musica": 0.64,
+   "rotulos": [
+    [
+     "Drum machine",
+     0.539
+    ],
+    [
+     "Drum",
+     0.228
+    ],
+    [
+     "Wood block",
+     0.092
+    ],
+    [
+     "Synthesizer",
+     0.087
+    ]
+   ]
+  }
+ ]
+}

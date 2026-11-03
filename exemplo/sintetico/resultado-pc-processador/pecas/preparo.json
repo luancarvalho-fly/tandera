@@ -1,0 +1,24 @@
+{
+ "duracao": 12.0,
+ "tem_imagem": true,
+ "tem_som": true,
+ "trilha_som": "0:1",
+ "codec_som": "aac",
+ "folga_aac_s": 0.0,
+ "criado": "",
+ "aparelho": "",
+ "fps": 25.0,
+ "largura": 480,
+ "altura": 270,
+ "rotacao_metadado": 0,
+ "quadros": 300,
+ "aberto": "uma leitura (filtro complexo)",
+ "q1": 12,
+ "arquivos": {
+  "q1": "pecas/preparo/q1",
+  "mini": "pecas/preparo/mini",
+  "leve480": "pecas/preparo/leve480.mp4",
+  "fala16k": "pecas/preparo/fala16k.wav",
+  "som48k": "pecas/preparo/som48k.wav"
+ }
+}

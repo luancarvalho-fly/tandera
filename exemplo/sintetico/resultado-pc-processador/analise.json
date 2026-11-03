@@ -1,0 +1,275 @@
+{
+ "video": "exemplo-sintetico.mp4",
+ "assinatura": "3d36520a103f",
+ "criada": "2026-11-02 01:50:13",
+ "pecas": {
+  "preparo": {
+   "versao": "2026-11-01",
+   "modelo": "ffmpeg (-noautorotate + transpose à mão; select periódico > 60 s; saída por saída se o filtro falhar)",
+   "onde": "cpu",
+   "feito_com": {},
+   "perfil": "pc",
+   "quando": "2026-11-02 01:50:13",
+   "medida": {
+    "s": 0.6,
+    "placa_pico_gb": 8.44,
+    "placa_antes_gb": 8.44,
+    "peca_somou_gb": 0.0,
+    "uso_medio_pct": 6,
+    "uso_max_pct": 6
+   }
+  },
+  "cortes": {
+   "versao": "2026-11-01",
+   "modelo": "AutoShot (onnx do CUTX, limiar 0,296) + TransNetV2 (transnetv2-pytorch) + diferença de pixel",
+   "onde": "placa",
+   "feito_com": {
+    "preparo": "2026-11-01"
+   },
+   "perfil": "pc",
+   "quando": "2026-11-02 01:50:26",
+   "medida": {
+    "s": 10.9,
+    "placa_pico_gb": 8.41,
+    "placa_antes_gb": 8.41,
+    "peca_somou_gb": -0.0,
+    "uso_medio_pct": 2,
+    "uso_max_pct": 3
+   }
+  },
+  "separacao": {
+   "versao": "entregue-bcc10fed11",
+   "modelo": "entregue pronta (musica, resto, voz): musica.wav · musica.wav · voz.wav",
+   "onde": "placa",
+   "feito_com": {
+    "preparo": "2026-11-01"
+   },
+   "perfil": "pc",
+   "quando": "2026-11-02 01:50:26",
+   "medida": {
+    "s": 0.2,
+    "placa_pico_gb": 8.35,
+    "placa_antes_gb": 8.35,
+    "peca_somou_gb": -0.0,
+    "uso_medio_pct": 2,
+    "uso_max_pct": 2
+   }
+  },
+  "fala": {
+   "versao": "2026-11-01c",
+   "modelo": "Whisper large-v3-turbo (faster-whisper fp16; sem VAD; só os trechos COM SOM pela energia RELATIVA; sem herdar o texto do trecho anterior; filtro de laço) + MMS_FA (torchaudio) + conferência na onda",
+   "onde": "placa",
+   "feito_com": {
+    "separacao": "entregue-bcc10fed11"
+   },
+   "perfil": "pc",
+   "quando": "2026-11-02 01:50:37",
+   "medida": {
+    "s": 10.8,
+    "placa_pico_gb": 8.36,
+    "placa_antes_gb": 8.35,
+    "peca_somou_gb": 0.01,
+    "uso_medio_pct": 2,
+    "uso_max_pct": 4
+   }
+  },
+  "entonacao": {
+   "versao": "2026-10-18",
+   "modelo": "Praat (parselmouth)",
+   "onde": "cpu",
+   "feito_com": {
+    "separacao": "entregue-bcc10fed11",
+    "fala": "2026-11-01c"
+   },
+   "perfil": "pc",
+   "quando": "2026-11-02 01:50:37",
+   "medida": {
+    "s": 0.2,
+    "placa_pico_gb": 8.37,
+    "placa_antes_gb": 8.37,
+    "peca_somou_gb": -0.0,
+    "uso_medio_pct": 3,
+    "uso_max_pct": 3
+   }
+  },
+  "batida": {
+   "versao": "2026-10-20",
+   "modelo": "Beat This! (final0) + ataque na onda + grade reta ajustada",
+   "onde": "placa",
+   "feito_com": {
+    "separacao": "entregue-bcc10fed11",
+    "cortes": "2026-11-01"
+   },
+   "perfil": "pc",
+   "quando": "2026-11-02 01:50:47",
+   "medida": {
+    "s": 9.6,
+    "placa_pico_gb": 8.37,
+    "placa_antes_gb": 8.37,
+    "peca_somou_gb": -0.0,
+    "uso_medio_pct": 2,
+    "uso_max_pct": 3
+   }
+  },
+  "musica": {
+   "versao": "2026-10-19",
+   "modelo": "medidor de música (Beat This! + librosa: matriz de semelhança, sem modelo de emoção por decisão dele)",
+   "onde": "placa",
+   "feito_com": {
+    "separacao": "entregue-bcc10fed11"
+   },
+   "perfil": "pc",
+   "quando": "2026-11-02 01:50:59",
+   "medida": {
+    "s": 12.0,
+    "placa_pico_gb": 8.37,
+    "placa_antes_gb": 8.35,
+    "peca_somou_gb": 0.02,
+    "uso_medio_pct": 4,
+    "uso_max_pct": 7
+   }
+  },
+  "rotulos": {
+   "versao": "2026-11-01",
+   "modelo": "CED-Base (mispeech/ced-base, AudioSet 527) — melhor etiquetador do teste de 01/11 (75% × YAMNet 55%)",
+   "onde": "placa",
+   "feito_com": {
+    "separacao": "entregue-bcc10fed11"
+   },
+   "perfil": "pc",
+   "quando": "2026-11-02 01:51:17",
+   "medida": {
+    "s": 17.7,
+    "placa_pico_gb": 8.46,
+    "placa_antes_gb": 8.29,
+    "peca_somou_gb": 0.17,
+    "uso_medio_pct": 6,
+    "uso_max_pct": 95
+   }
+  },
+  "sinal": {
+   "versao": "2026-11-01",
+   "modelo": "conta pura (fluxo espectral com limiar local; diferença de quadro); cortes do AutoShot",
+   "onde": "cpu",
+   "feito_com": {
+    "separacao": "entregue-bcc10fed11",
+    "cortes": "2026-11-01",
+    "rotulos": "2026-11-01",
+    "fala": "2026-11-01c"
+   },
+   "perfil": "pc",
+   "quando": "2026-11-02 01:51:18",
+   "medida": {
+    "s": 0.6,
+    "placa_pico_gb": 8.35,
+    "placa_antes_gb": 8.34,
+    "peca_somou_gb": 0.01,
+    "uso_medio_pct": 3,
+    "uso_max_pct": 3
+   }
+  }
+ },
+ "rodadas": [
+  {
+   "quando": "2026-11-02 01:50:13",
+   "perfil": "pc",
+   "motor": "2026-11-01",
+   "pedidas": [
+    "cortes",
+    "fala",
+    "entonacao",
+    "batida",
+    "musica",
+    "rotulos",
+    "sinal"
+   ],
+   "rodou": {
+    "preparo": {
+     "s": 0.6,
+     "placa_pico_gb": 8.44,
+     "placa_antes_gb": 8.44,
+     "peca_somou_gb": 0.0,
+     "uso_medio_pct": 6,
+     "uso_max_pct": 6,
+     "porque": "falta"
+    },
+    "cortes": {
+     "s": 10.9,
+     "placa_pico_gb": 8.41,
+     "placa_antes_gb": 8.41,
+     "peca_somou_gb": -0.0,
+     "uso_medio_pct": 2,
+     "uso_max_pct": 3,
+     "porque": "falta"
+    },
+    "separacao": {
+     "s": 0.2,
+     "placa_pico_gb": 8.35,
+     "placa_antes_gb": 8.35,
+     "peca_somou_gb": -0.0,
+     "uso_medio_pct": 2,
+     "uso_max_pct": 2,
+     "porque": "falta"
+    },
+    "fala": {
+     "s": 10.8,
+     "placa_pico_gb": 8.36,
+     "placa_antes_gb": 8.35,
+     "peca_somou_gb": 0.01,
+     "uso_medio_pct": 2,
+     "uso_max_pct": 4,
+     "porque": "falta"
+    },
+    "entonacao": {
+     "s": 0.2,
+     "placa_pico_gb": 8.37,
+     "placa_antes_gb": 8.37,
+     "peca_somou_gb": -0.0,
+     "uso_medio_pct": 3,
+     "uso_max_pct": 3,
+     "porque": "falta"
+    },
+    "batida": {
+     "s": 9.6,
+     "placa_pico_gb": 8.37,
+     "placa_antes_gb": 8.37,
+     "peca_somou_gb": -0.0,
+     "uso_medio_pct": 2,
+     "uso_max_pct": 3,
+     "porque": "falta"
+    },
+    "musica": {
+     "s": 12.0,
+     "placa_pico_gb": 8.37,
+     "placa_antes_gb": 8.35,
+     "peca_somou_gb": 0.02,
+     "uso_medio_pct": 4,
+     "uso_max_pct": 7,
+     "porque": "falta"
+    },
+    "rotulos": {
+     "s": 17.7,
+     "placa_pico_gb": 8.46,
+     "placa_antes_gb": 8.29,
+     "peca_somou_gb": 0.17,
+     "uso_medio_pct": 6,
+     "uso_max_pct": 95,
+     "porque": "falta"
+    },
+    "sinal": {
+     "s": 0.6,
+     "placa_pico_gb": 8.35,
+     "placa_antes_gb": 8.34,
+     "peca_somou_gb": 0.01,
+     "uso_medio_pct": 3,
+     "uso_max_pct": 3,
+     "porque": "falta"
+    }
+   },
+   "guardada": [],
+   "falhou": {},
+   "pulou": {},
+   "s": 65.0
+  }
+ ]
+}
