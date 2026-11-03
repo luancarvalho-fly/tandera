@@ -282,4 +282,13 @@ def main(argv=None):
     for i in itens:
         if i["pista"] not in PISTAS: raise SystemExit(f"pista desconhecida: {i['pista']}")
         if not os.path.exists(i["arquivo"]): raise SystemExit(f"não existe: {i['arquivo']}")
-    rodar(itens, nome, x.ate, x.bloco, completar=x.checklist, com=com)
+    try:
+        rodar(itens, nome, x.ate, x.bloco, completar=x.checklist, com=com)
+    finally:
+        # 03/11 (Kakashi 14:15, ele: «o que que acabou se isso aqui não atualizou ainda... atualizar automático, né»): toda fila, ao parar
+        # (acabou, deu a hora, Premiere, erro), refaz o checklist — o painel mostra o que ela fez sem ninguém apertar «atualizar»
+        try:
+            from .checklist import atualizar
+            atualizar()
+        except Exception as e:
+            base.log(f"checklist no fim da fila: {type(e).__name__}: {e}")
