@@ -14,6 +14,16 @@ for nome in FALTANDO:
     except Exception:
         sys.modules[nome] = MagicMock(name=nome)
 
+# 04/11 (porte do Mac, Gu): o MPS da Apple nao tem float64 e o BandIt guarda buffers em float64; indo pro MPS, o modelo vira float32
+# antes (musica 57 dB x processador). Na NVIDIA e no processador nada muda.
+import torch
+_to = torch.nn.Module.to
+def _to_mps(self, *a, **k):
+    if str(a[0] if a else k.get("device")).startswith("mps"):
+        self.float()
+    return _to(self, *a, **k)
+torch.nn.Module.to = _to_mps
+
 msst = Path(__file__).resolve().parents[2] / "msst"
 sys.path.insert(0, str(msst))
 sys.argv = [str(msst / "inference.py")] + sys.argv[1:]

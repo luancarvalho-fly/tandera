@@ -1,0 +1,30 @@
+# O ambiente do Tandera no MAC (04/11/2026, porte do Gu) — o requisitos.txt SEM o que é só NVIDIA/Windows (+cu128, onnxruntime-gpu,
+# bitsandbytes, nvidia-ml-py, decord). Mesmas versões onde existem pro Mac. Python 3.12. Instalar (de dentro da pasta):
+#   uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r ambiente/requisitos-mac.txt
+#   uv venv --python 3.12 .venv-sep && uv pip install --python .venv-sep/bin/python "audio-separator[cpu]==0.44.5" audioread "librosa==0.10.2.post1"   (a separação, à parte)
+torch==2.11.0
+torchaudio==2.11.0
+torchvision==0.26.0
+transformers==5.20.1
+accelerate
+safetensors
+huggingface_hub
+numpy==2.5.2
+scipy
+soundfile
+soxr
+librosa
+pillow
+pillow-heif
+opencv-python==5.0.0.93
+onnxruntime==1.23.2
+faster-whisper==1.2.1
+beat-this==1.1.0
+transnetv2-pytorch==1.0.5
+praat-parselmouth
+scikit-image
+timm
+einops
+psutil
+requests
+audioread
