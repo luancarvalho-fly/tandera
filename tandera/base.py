@@ -29,6 +29,23 @@ if os.name == "nt":
     CHAVE_GEMINI = _env("TANDERA_CHAVE_GEMINI") or os.path.join(os.path.expanduser("~"), ".gemini", "chave-api.txt")
     MEDIDOR = _env("TANDERA_MEDIDOR") or ""                      # o Medidor (a agenda da placa) é um app do PC do Luan: sem ele, nada a avisar
     FONTE = _env("TANDERA_FONTE") or r"C:\Windows\Fonts\arialbd.ttf"
+elif sys.platform == "darwin":
+    # 04/11 (porte do Mac, Gu): o 3º caminho. Igual ao Windows, tudo por variável TANDERA_* e, sem ela, dentro desta pasta (.venv, .venv-sep,
+    # pesos/). Sem placa NVIDIA o motor roda no processador (_tem_placa() = False); o MPS entra peça por peça, medido (MAC.md).
+    PY = _env("TANDERA_PY") or os.path.join(TANDERA, ".venv", "bin", "python")
+    PY_OCR = _env("TANDERA_PY_OCR") or os.path.join(TANDERA, ".venv-ocr", "bin", "python")
+    PESOS = _env("TANDERA_PESOS") or os.path.join(TANDERA, "pesos")
+    REGUA = _env("TANDERA_REGUA") or os.path.join(PESOS, "regua")
+    AUTOSHOT = _env("TANDERA_AUTOSHOT") or os.path.join(MODELOS, "autoshot.onnx")
+    ROFO = _env("TANDERA_ROFO") or os.path.join(TANDERA, ".venv-sep", "bin", "audio-separator")
+    ROFO_MODELOS = _env("TANDERA_ROFO_MODELOS") or os.path.join(PESOS, "audio-separator")
+    CINE = _env("TANDERA_CINE") or os.path.join(TANDERA, "terceiros", "separador-cinema")
+    PY_CINE = _env("TANDERA_PY_CINE") or os.path.join(TANDERA, ".venv-cine", "bin", "python")
+    POSE_HEAVY = _env("TANDERA_POSE") or os.path.join(PESOS, "pose_landmarker_heavy.task")
+    CED = _env("TANDERA_CED") or os.path.join(PESOS, "ced-base")
+    CHAVE_GEMINI = _env("TANDERA_CHAVE_GEMINI") or os.path.expanduser("~/.gemini/chave-api.txt")
+    MEDIDOR = None
+    FONTE = _env("TANDERA_FONTE") or "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
 else:
     PESOS = _env("TANDERA_PESOS") or "/root/tandera_pesos"      # o disco local da máquina (o preparar copia do storage pra cá)
     PY = _env("TANDERA_PY") or os.path.join(TANDERA, ".venv", "bin", "python")
@@ -46,6 +63,11 @@ else:
     FONTE = _env("TANDERA_FONTE") or "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"   # mesma medida da Arial Bold
 OLLAMA = _env("TANDERA_OLLAMA") or "http://localhost:11434/api"
 SEM_JANELA = 0x08000000 if os.name == "nt" else 0
+# 04/11 (porte do Mac, Gu): a placa da Apple (MPS) só nas peças PROVADAS iguais ao processador. Hoje: o BandIt da separação (música ×
+# efeitos 57 dB × processador num vídeo de 85 s; 118 s × 342 s). O BS-Roformer já usa o MPS sozinho (audio-separator). Desliga:
+# TANDERA_SEM_MPS=1, ou esconder a placa (CUDA_VISIBLE_DEVICES vazio / -1, o jeito do --cpu da sonoplastia).
+MAC_MPS = (sys.platform == "darwin" and platform.machine() == "arm64" and not _env("TANDERA_SEM_MPS")
+           and _env("CUDA_VISIBLE_DEVICES") not in ("", "-1"))
 
 
 def sem_janela():

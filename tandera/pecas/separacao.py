@@ -38,7 +38,7 @@ def separar(som48k, pasta, placa=True, log=base.log):
                "--model_type", "bandit", "--config_path", os.path.join(base.CINE, "msst", "configs", "config_dnr_bandit_bsrnn_multi_mus64.yaml"),
                "--start_check_point", os.path.join(base.CINE, "modelos-teste", "bandit_plus", "model_bandit_plus_dnr_sdr_11.47.chpt"),
                "--input_folder", ent, "--store_dir", p("bandit")]
-        if not placa: cmd.append("--force_cpu")
+        if not placa and not base.MAC_MPS: cmd.append("--force_cpu")      # 04/11: no Mac o BandIt vai pro MPS (base.MAC_MPS)
         subprocess.run(cmd, check=True, capture_output=True, creationflags=base.SEM_JANELA)
         pa = os.path.join(p("bandit"), "resto"); mf = [f for f in os.listdir(pa) if "music" in f.lower() and f.endswith(".wav")][0]
         import librosa
@@ -121,7 +121,7 @@ def separar_varios(itens, placa=True, log=base.log, trabalho=None):
                    "--model_type", "bandit", "--config_path", os.path.join(base.CINE, "msst", "configs", "config_dnr_bandit_bsrnn_multi_mus64.yaml"),
                    "--start_check_point", os.path.join(base.CINE, "modelos-teste", "bandit_plus", "model_bandit_plus_dnr_sdr_11.47.chpt"),
                    "--input_folder", ent, "--store_dir", sai]
-            if not placa: cmd.append("--force_cpu")
+            if not placa and not base.MAC_MPS: cmd.append("--force_cpu")      # 04/11: no Mac o BandIt vai pro MPS (base.MAC_MPS)
             subprocess.run(cmd, check=True, capture_output=True, creationflags=base.SEM_JANELA)
             import librosa
             for i in falta:
