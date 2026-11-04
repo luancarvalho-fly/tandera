@@ -48,6 +48,27 @@ OLLAMA = _env("TANDERA_OLLAMA") or "http://localhost:11434/api"
 SEM_JANELA = 0x08000000 if os.name == "nt" else 0
 
 
+def sem_janela():
+    """sem console (pythonw ou filho escondido da fila): todo programa que ESTE processo abrir sai sem janela.
+    04/11: o remendo morava só na fila.py; os filhos dela (python -m tandera, separação, medidor) não tinham, e o Terminal piscava.
+    Agora vale em qualquer processo que importe o Tandera sem terminal na frente (no cmd/terminal dele, nada muda)."""
+    if os.name != "nt" or getattr(subprocess.Popen.__init__, "_tandera_sem_janela", False):
+        return
+    if not (sys.stdout is None or not sys.stdout.isatty()) or os.environ.get("TANDERA_SEM_JANELA", "1") != "1":
+        return
+    orig = subprocess.Popen.__init__
+
+    def init(self, *a, **k):
+        if not k.get("creationflags"):
+            k["creationflags"] = SEM_JANELA
+        return orig(self, *a, **k)
+    init._tandera_sem_janela = True
+    subprocess.Popen.__init__ = init
+
+
+sem_janela()
+
+
 def perfil_da_maquina():
     """pc = o PC do Luan (Windows, RTX 5070); servidor = Linux (RunPod; o WSL na prova das panelas, 01/11)"""
     if os.environ.get("TANDERA_PERFIL"): return os.environ["TANDERA_PERFIL"]
@@ -180,9 +201,38 @@ class Medida:
         return r
 
 
+def nomes_dos_processos():
+    """os nomes dos programas abertos, lidos direto do Windows (CreateToolhelp32Snapshot), SEM abrir programa nenhum.
+    04/11: o `tasklist` que ficava aqui abriu o Terminal na tela dele a cada bloco da fila («não quero essa tela do terminal piscando»)."""
+    if os.name != "nt":
+        return []
+    import ctypes
+    from ctypes import wintypes
+
+    class PE(ctypes.Structure):
+        _fields_ = [("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD), ("th32ProcessID", wintypes.DWORD),
+                    ("th32DefaultHeapID", ctypes.c_size_t), ("th32ModuleID", wintypes.DWORD), ("cntThreads", wintypes.DWORD),
+                    ("th32ParentProcessID", wintypes.DWORD), ("pcPriClassBase", ctypes.c_long), ("dwFlags", wintypes.DWORD),
+                    ("szExeFile", ctypes.c_wchar * 260)]
+    k = ctypes.WinDLL("kernel32", use_last_error=True)
+    k.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    snap = k.CreateToolhelp32Snapshot(0x2, 0)              # TH32CS_SNAPPROCESS
+    if not snap or snap == wintypes.HANDLE(-1).value:
+        return []
+    nomes, pe = [], PE()
+    pe.dwSize = ctypes.sizeof(PE)
+    try:
+        ok = k.Process32FirstW(snap, ctypes.byref(pe))
+        while ok:
+            nomes.append(pe.szExeFile)
+            ok = k.Process32NextW(snap, ctypes.byref(pe))
+    finally:
+        k.CloseHandle(snap)
+    return nomes
+
+
 def premiere_aberto():
-    o = subprocess.run(["tasklist", "/FO", "CSV", "/NH"], capture_output=True, text=True, encoding="cp850", errors="replace").stdout if os.name == "nt" else ""
-    return any("premiere" in l.split(",")[0].lower() for l in o.splitlines() if l)
+    return any("premiere" in n.lower() for n in nomes_dos_processos())
 
 
 def _ollama(rota, corpo=None, timeout=60):

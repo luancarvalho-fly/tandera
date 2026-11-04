@@ -22,13 +22,7 @@ from .pistas import FOTOS, PISTAS, VIDEOS, pecas_da, stems_da
 
 def _sem_janela():
     """sem console (pythonw): todo filho abre sem janela (regra dele, 31/10: «Para de ficar abrindo essa tela»)"""
-    if os.name != "nt": return
-    orig = subprocess.Popen.__init__
-
-    def init(self, *a, **k):
-        if not k.get("creationflags"): k["creationflags"] = base.SEM_JANELA
-        return orig(self, *a, **k)
-    subprocess.Popen.__init__ = init
+    base.sem_janela()      # 04/11: o remendo mudou pra base.py, que todo processo do Tandera importa (os filhos da fila também)
 
 
 def _arquivos(caminhos):
