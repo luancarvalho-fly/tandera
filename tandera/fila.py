@@ -100,6 +100,9 @@ NUVEM = ("diario",)
 DEPOIS_DA_NUVEM = ("busca",)
 
 
+ESPERA_COTA = 30 * 60          # segundos entre uma tentativa e outra quando o Gemini está sem cota
+
+
 class LinhaNuvem(threading.Thread):
     def __init__(self, log):
         super().__init__(daemon=True)
@@ -118,14 +121,24 @@ class LinhaNuvem(threading.Thread):
             if x is None: return
             video, quer_busca = x
             try:
-                if self.parar or self.sem_cota: continue
-                motor.rodar(video, ["diario"], placa=False, log=self.log)
-                A = Analise(video)
-                erro = ((A.d.get("rodadas") or [{}])[-1].get("falhou") or {}).get("diario", "")
-                if "sem cota" in erro.lower():
+                # 03/11 ~23h (ele: «foca em terminar... essa madrugada»): sem cota, a linha NÃO larga os diários até a próxima noite —
+                # espera a cota voltar (a do Gemini grátis zera à meia-noite do Pacífico, ~05h aqui) e tenta o MESMO vídeo de novo a cada
+                # ESPERA_COTA, na ordem da fila; a placa segue com o resto enquanto isso
+                while not self.parar:
+                    motor.rodar(video, ["diario"], placa=False, log=self.log)
+                    A = Analise(video)
+                    erro = ((A.d.get("rodadas") or [{}])[-1].get("falhou") or {}).get("diario", "")
+                    if "sem cota" not in erro.lower(): break
+                    if not self.sem_cota:
+                        self.log(f"☁ sem cota no Gemini: os diários esperam a cota voltar (tento de novo a cada {ESPERA_COTA // 60} min)")
                     self.sem_cota = True
-                    self.log("☁ sem cota no Gemini: os diários que faltam ficam pra próxima noite (o checklist guarda)")
-                elif A.tem("diario") and quer_busca:
+                    for _ in range(ESPERA_COTA):
+                        if self.parar: break
+                        time.sleep(1)
+                if self.parar: continue
+                if self.sem_cota: self.log("☁ a cota do Gemini voltou: seguindo com os diários")
+                self.sem_cota = False
+                if A.tem("diario") and quer_busca:
                     with self.trava: self.prontos.append(video)
             except Exception as e:
                 self.log(f"☁ diário de {os.path.basename(video)} falhou: {type(e).__name__}: {str(e)[:200]}")
@@ -248,7 +261,8 @@ def rodar(itens, nome, ate=None, bloco=4, completar=False, com=()):
                     E.marca(i["arquivo"], estado="falhou", falhou={"bloco": f"{type(e).__name__}: {str(e)[:200]}"})
         log(f"bloco {pista} ({len(grupo)}) em {time.monotonic() - t0:.0f} s")
     # a placa acabou: espera a linha da nuvem (até a hora) e faz a busca dos últimos diários
-    while nuvem.pendentes and not nuvem.sem_cota and not _parar(ate):
+    # com hora marcada (--ate), espera a cota do Gemini voltar até a hora; sem hora, não fica preso esperando a cota
+    while nuvem.pendentes and not _parar(ate) and (ate or not nuvem.sem_cota):
         time.sleep(20)
         try: _busca(lote, nuvem, log)
         except SystemExit: break
