@@ -20,18 +20,30 @@ def _seg(t):
     return int(m.group(1)) * 60 + float(m.group(2)) if m else None
 
 
+def _itens(v):
+    """os itens de um campo do diário como dicts: o modelo às vezes devolve lista DENTRO de lista (04/11, EP02: falas_de_ouro = [[{…}]])
+    ou texto solto no lugar do objeto — achata e embrulha, em vez de quebrar a peça inteira"""
+    if isinstance(v, dict):
+        yield v
+    elif isinstance(v, (list, tuple)):
+        for x in v:
+            yield from _itens(x)
+    elif v not in (None, ""):
+        yield {"texto": str(v)}
+
+
 def documentos(d):
     docs = []
     add = lambda tipo, txt, de=None, ate=None: docs.append({"tipo": tipo, "texto": txt.strip(), "de": de, "ate": ate}) if txt and txt.strip() else None  # noqa: E731
-    add("resumo", d.get("resumo", ""))
-    for x in d.get("linha_do_tempo") or []:
-        add("linha do tempo", f"{x.get('ve', '')} · som: {x.get('ouve', '')}", _seg(x.get("de")), _seg(x.get("ate")))
-    for x in d.get("falas_de_ouro") or []:
-        add("fala de ouro", f"«{x.get('fala', '')}» ({x.get('por_que', '')})", _seg(x.get("t")))
-    for x in d.get("reacoes") or []:
-        add("reação", f"{x.get('quem', '')}: {x.get('expressao', '')}", _seg(x.get("t")))
-    for x in d.get("momentos_aproveitaveis") or []:
-        add("momento", f"{x.get('tipo', '')}: {x.get('por_que', '')}", _seg(x.get("de")), _seg(x.get("ate")))
+    add("resumo", str(d.get("resumo") or ""))
+    for x in _itens(d.get("linha_do_tempo")):
+        add("linha do tempo", f"{x.get('ve', x.get('texto', ''))} · som: {x.get('ouve', '')}", _seg(x.get("de")), _seg(x.get("ate")))
+    for x in _itens(d.get("falas_de_ouro")):
+        add("fala de ouro", f"«{x.get('fala', x.get('texto', ''))}» ({x.get('por_que', '')})", _seg(x.get("t")))
+    for x in _itens(d.get("reacoes")):
+        add("reação", f"{x.get('quem', '')}: {x.get('expressao', x.get('texto', ''))}", _seg(x.get("t")))
+    for x in _itens(d.get("momentos_aproveitaveis")):
+        add("momento", f"{x.get('tipo', '')}: {x.get('por_que', x.get('texto', ''))}", _seg(x.get("de")), _seg(x.get("ate")))
     for x in d.get("escrito_e_marcas") or []:
         add("escrito", str(x))
     if d.get("etiquetas"): add("etiquetas", ", ".join(map(str, d["etiquetas"])))
