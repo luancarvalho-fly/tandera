@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tandera · checklist</title>
+<style>
+/* o painel do checklist do Tandera (tandera/painel.py serve esta página): abas por grupo, cada vídeo uma coluna com a capa em cima, as
+   peças do motor nas linhas; «rodando agora» à esquerda */
+:root{
+  --preto:#0B0B0D; --cartao:#161618; --fundo-tab:#141416; --fio:rgba(255,255,255,.08); --linha:#222226;
+  --branco:#fff; --claro:#C9C9CF; --cinza:#9A9AA3; --apagado:#6E6E76; --escuro:#26262A;
+  --agora:#FF6319; --trava:#EE352E; --velha:#FF9F43;
+  --fonte:"Helvetica Neue",Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--preto);color:var(--cinza);font:400 15px/1.45 var(--fonte);-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;overflow:hidden}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+.cab{display:flex;align-items:center;gap:18px;padding:14px 24px 12px;border-bottom:1px solid var(--linha);flex:none;flex-wrap:wrap}
+.cab .marca{color:var(--agora);font:900 20px/1 var(--fonte);letter-spacing:.02em}
+.cab .disco{display:flex;align-items:center;gap:10px;flex:1;min-width:220px;font:700 14px/1 var(--fonte);color:var(--claro)}
+.barra-total{display:block;width:160px;height:6px;border-radius:3px;background:var(--escuro);overflow:hidden;flex:none}
+.barra-total b{display:block;height:100%;background:var(--branco)}
+.cab .fila{font:600 13px/1.2 var(--fonte);color:var(--cinza);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:38vw}
+.cab .fila.viva{color:var(--agora)}
+.auto{color:var(--apagado);font:600 12px/1 var(--fonte);white-space:nowrap}
+.acao{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:36px;height:36px;padding:0 12px;border-radius:999px;background:var(--escuro);color:#fff;font:700 13px/1 var(--fonte);white-space:nowrap}
+.acao:hover{background:#34343A}
+.acao[disabled]{opacity:.45;cursor:default}
+.lados{flex:1;min-height:0;display:flex}
+.agora{flex:0 0 280px;display:flex;flex-direction:column;gap:12px;padding:18px 18px 18px 24px;border-right:1px solid var(--linha);overflow:auto;scrollbar-width:thin}
+.agora h3{margin:0;color:var(--apagado);font:700 11px/1 var(--fonte);letter-spacing:.08em;text-transform:uppercase}
+.agora.vivo h3{color:var(--agora)}
+.agora .vazio{margin:0;color:var(--cinza);font:600 15px/1.3 var(--fonte)}
+.agora .prox{margin:0;color:var(--apagado);font:500 13px/1.3 var(--fonte)}
+.agora .vid{display:flex;flex-direction:column;gap:8px}
+.agora .img{display:block;height:150px;border-radius:12px;overflow:hidden;background:#0F0F11}
+.agora .img img{width:100%;height:100%;object-fit:cover;display:block}
+.agora .nome{color:#fff;font:700 15px/1.2 var(--fonte);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.agora .peca{color:var(--agora);font:900 26px/1 var(--fonte);text-transform:uppercase;letter-spacing:-.01em}
+.agora .barra{height:8px;border-radius:4px;background:var(--escuro);overflow:hidden}
+.agora .barra b{display:block;height:100%;background:var(--agora);transition:width .6s}
+.agora .num{display:flex;justify-content:space-between;align-items:baseline;color:var(--cinza);font:600 13px/1 var(--fonte)}
+.agora .num b{color:#fff;font:800 22px/1 var(--fonte)}
+.agora .pecas{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:2px}
+.agora .pecas li{display:flex;align-items:center;gap:8px;padding:4px 0;color:var(--apagado);font:600 13px/1 var(--fonte)}
+.agora .pecas li i{width:18px;text-align:center;font-style:normal}
+.agora .pecas li.ok{color:var(--claro)}
+.agora .pecas li.agora{color:var(--agora)}
+.agora .pecas li.falhou{color:var(--trava)}
+.corpo{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;gap:14px;padding:16px 24px 18px 18px;overflow:hidden}
+.abas{display:flex;gap:8px;overflow-x:auto;flex:none;padding-bottom:4px;scrollbar-width:thin}
+.abas .aba{flex:none;display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:999px;background:#1A1A1D;color:var(--claro);font:700 14px/1 var(--fonte);white-space:nowrap}
+.abas .aba b{font-weight:800;color:var(--apagado);font-variant-numeric:tabular-nums}
+.abas .aba:hover{background:var(--escuro)}
+.abas .aba.on{background:#fff;color:#111}
+.abas .aba.on b{color:#111}
+.abas .aba.pedir-ok{opacity:.6}
+.grupo{flex:1;min-height:0;display:flex;flex-direction:column;gap:14px}
+.resumo{display:flex;align-items:center;gap:18px;flex-wrap:wrap;font:500 14px/1.2 var(--fonte);color:var(--cinza);flex:none}
+.resumo b{font:800 20px/1 var(--fonte);color:#fff;margin-right:4px}
+.resumo .falta b{color:var(--agora)}
+.resumo .h{color:var(--apagado)}
+.resumo .acao{margin-left:auto}
+.resumo .tudo{margin-left:auto;color:var(--apagado);font-weight:700}
+.so-ok{padding:6px 10px;border-radius:999px;border:1px solid var(--agora);color:var(--agora);font:700 11px/1 var(--fonte);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.grade{flex:1;min-height:0;overflow:auto;border-radius:14px;background:var(--fundo-tab);scrollbar-width:thin}
+.grade table{border-collapse:separate;border-spacing:0}
+.grade thead th{position:sticky;top:0;z-index:2;background:var(--fundo-tab);padding:10px 6px 8px;vertical-align:bottom}
+.grade th.canto{position:sticky;left:0;top:0;z-index:4;text-align:left;padding:0 14px 12px;min-width:132px;color:var(--apagado);font:700 11px/1.2 var(--fonte);letter-spacing:.06em;text-transform:uppercase}
+.grade th.vid{width:150px;min-width:150px}
+.grade th.peca{position:sticky;left:0;z-index:1;background:var(--fundo-tab);text-align:left;padding:0 14px;color:var(--claro);font:600 13px/1 var(--fonte);white-space:nowrap;border-top:1px solid var(--fio);height:38px}
+.grade td.cel{text-align:center;border-top:1px solid var(--fio);height:38px;padding:0}
+.grade td.cel.sel,.grade th.vid.sel{background:#22201A}
+.grade tbody tr:hover th.peca,.grade tbody tr:hover td.cel{background:#1A1A1D}
+.bol{width:22px;height:22px;display:inline-block;vertical-align:middle;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.bol.ok circle{fill:#fff;stroke:#fff}
+.bol.ok path{stroke:#111}
+.bol.falta circle,.bol.falta path{stroke:var(--agora)}
+.bol.velha circle,.bol.velha path{stroke:var(--velha)}
+.bol.falhou circle{fill:var(--trava);stroke:var(--trava)}
+.bol.falhou path{stroke:#fff}
+.cel .fonte{display:block;font-size:10px;line-height:1;margin-top:2px;color:var(--cinza);letter-spacing:.02em}
+.grade i.nada{display:inline-block;width:5px;height:5px;border-radius:50%;background:#2E2E33;vertical-align:middle}
+.grade i.girando{display:inline-block;width:18px;height:18px;border-radius:50%;border:2.4px solid var(--agora);border-top-color:transparent;vertical-align:middle;animation:gira .9s linear infinite}
+@keyframes gira{to{transform:rotate(360deg)}}
+.grade tr.rodar td.cel{height:50px}
+.grade tr.rodar .acao{height:30px;padding:0 10px;font-size:12px}
+.grade tr.rodar .feito{color:var(--apagado);font:700 11px/1 var(--fonte);letter-spacing:.06em;text-transform:uppercase}
+.capa{width:150px;display:flex;flex-direction:column;gap:6px;padding:0 0 10px;border-radius:14px;background:var(--cartao);text-align:left;overflow:hidden;border:2px solid transparent;color:#fff}
+.capa:hover{background:#1E1E21}
+.capa.sel{border-color:var(--agora)}
+th.vid.rodando .capa{border-color:var(--agora)}
+.capa .img{position:relative;display:block;height:190px;background:#0F0F11;overflow:hidden}
+.capa .img img{width:100%;height:100%;object-fit:cover;display:block}
+.capa .dur{position:absolute;right:6px;bottom:6px;padding:3px 6px;border-radius:6px;background:rgba(0,0,0,.72);color:#fff;font:700 11px/1 var(--fonte);font-style:normal;font-variant-numeric:tabular-nums}
+.capa .nome{padding:0 10px;font:600 13px/1.2 var(--fonte);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.capa.ok .nome{color:var(--cinza)}
+.capa .onde{margin:0 10px;align-self:flex-start;padding:4px 8px;border-radius:999px;font:700 10px/1 var(--fonte);letter-spacing:.06em;text-transform:uppercase;border:1px solid #3A3A40;color:var(--apagado)}
+.capa .onde.ok{background:#fff;color:#111;border-color:transparent}
+.capa .onde.falta{color:var(--agora);border-color:var(--agora)}
+.dica{flex:none;color:var(--apagado);font:500 13px/1.4 var(--fonte);margin:0}
+.vazio-grupo{color:var(--cinza)}
+.aviso{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);max-width:min(560px,calc(100vw - 32px));padding:12px 18px;border-radius:12px;background:#202023;color:#fff;font:600 14px/1.3 var(--fonte);box-shadow:0 8px 30px rgba(0,0,0,.5);z-index:10}
+.aviso.erro{background:var(--trava)}
+@media (max-width:760px){
+  body{overflow:auto}
+  .lados{flex-direction:column}
+  .agora{flex:none;border-right:0;border-bottom:1px solid var(--linha);padding:16px}
+  .corpo{padding:16px;overflow:visible}
+  .cab{padding:12px 16px}
+  .cab .fila{max-width:100%}
+  .grupo{flex:none}
+  .grade{flex:none;height:70vh}
+  .grade th.canto{min-width:96px}
+}
+</style>
+</head>
+<body>
+<header class="cab" id="cab"></header>
+<main class="lados" id="lados"><p class="dica" style="padding:22px">Carregando…</p></main>
+<script>
+'use strict';
+const ESTADO = { e: null, aba: null, sel: null, timer: null };
+const SVG = 'http://www.w3.org/2000/svg';
+function h(tag, at, ...filhos) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(at || {})) {
+    if (v == null || v === false) continue;
+    if (k === 'class') el.className = v;
+    else if (k === 'style') Object.assign(el.style, v);
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (k === 'disabled') el.disabled = !!v;
+    else el.setAttribute(k, v);
+  }
+  for (const f of filhos.flat(Infinity)) if (f != null && f !== false) el.append(f.nodeType ? f : String(f));
+  return el;
+}
+function s(tag, at, ...filhos) {
+  const el = document.createElementNS(SVG, tag);
+  for (const [k, v] of Object.entries(at || {})) el.setAttribute(k, v);
+  for (const f of filhos) if (f) el.append(f);
+  return el;
+}
+async function api(caminho, corpo) {
+  const r = await fetch(caminho, corpo ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) } : {});
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.erro || r.statusText);
+  return j;
+}
+let avisoT = null;
+function avisar(txt, erro) {
+  document.querySelectorAll('.aviso').forEach((x) => x.remove());
+  const el = h('div', { class: 'aviso' + (erro ? ' erro' : ''), role: 'status' }, txt);
+  document.body.append(el); clearTimeout(avisoT); avisoT = setTimeout(() => el.remove(), 6000);
+}
+
+const NOME_PECA = { preparo: 'preparo', cortes: 'cortes', separacao: 'separação', fala: 'fala', entonacao: 'entonação', batida: 'batida', musica: 'música',
+  rotulos: 'rótulos', sinal: 'sinal', camera: 'câmera', corpo: 'corpo', pisada: 'pisada', boca: 'boca', rostos: 'rostos', texto: 'texto', imagem: 'imagem',
+  som: 'som', ovis: 'ovis', diario: 'diário', busca: 'busca', olho: 'olho', efeitos: 'efeitos', fotos: 'fotos' };
+const CEL = { ok: 'feita na versão atual', falta: 'falta', velha: 'a peça do motor atualizou: refaz', falhou: 'falhou' };
+const SIT = { completo: ['ok', 'ok'], 'falta peça': ['falta', 'falta'], 'nunca analisado': ['nunca', 'nunca'] };
+const nomePeca = (p) => NOME_PECA[p] || p;
+const dataBR = (x) => { const m = /^\d{4}-(\d\d)-(\d\d)[ T](\d\d:\d\d)/.exec(String(x || '')); return m ? m[2] + '/' + m[1] + ' ' + m[3] : '—'; };
+const num = (x) => String(x || 0).replace('.', ',');
+const tempo = (x) => Math.floor(x / 60) + ':' + String(Math.floor(x % 60)).padStart(2, '0');
+const minutos = (x) => { x = Math.max(0, Math.round(x || 0)); return x < 60 ? x + ' s' : '~' + Math.round(x / 60) + ' min'; };
+const capaUrl = (a) => '/api/capa?a=' + encodeURIComponent(a);
+
+async function vigiar() {
+  clearTimeout(ESTADO.timer);
+  try { ESTADO.e = await api('/api/estado'); }
+  catch (er) { ESTADO.timer = setTimeout(vigiar, 15000); return; }
+  const e = ESTADO.e;
+  ESTADO.timer = setTimeout(vigiar, (e.atualizando || (e.fila && e.fila.viva)) ? 4000 : 15000);
+  desenhar();
+}
+async function rodar(corpo, rotulo) {
+  try { ESTADO.e = await api('/api/rodar', corpo); avisar((ESTADO.e.aviso || 'rodando') + ' · ' + rotulo); }
+  catch (er) { avisar('Não deu: ' + er.message, true); }
+  desenhar(); vigiar();
+}
+
+function bolinha(est) {
+  const tipo = est === 'ok' ? 'ok' : est === 'velha' ? 'velha' : est === 'falhou' ? 'falhou' : 'falta';
+  const marca = tipo === 'ok' ? s('path', { d: 'M7.5 12.5l3 3 6-6.5' }) : tipo === 'velha' ? s('path', { d: 'M16 9a5 5 0 1 0 1 5M16 5v4h-4' }) : s('path', { d: 'M8.5 8.5l7 7M15.5 8.5l-7 7' });
+  return s('svg', { class: 'bol ' + tipo, viewBox: '0 0 24 24', 'aria-hidden': 'true' }, s('circle', { cx: 12, cy: 12, r: 9.5 }), marca);
+}
+function capa(a) {
+  const [cls, txt] = SIT[a.situacao] || ['nunca', a.situacao];
+  return h('button', { class: 'capa ' + cls + (ESTADO.sel === a.assinatura ? ' sel' : ''), title: a.caminho,
+    onclick: () => { ESTADO.sel = ESTADO.sel === a.assinatura ? null : a.assinatura; desenhar(); } },
+    h('span', { class: 'img' }, a.assinatura ? h('img', { src: capaUrl(a.assinatura), loading: 'lazy', alt: '', onerror: (ev) => ev.target.remove() }) : null,
+      a.dur ? h('i', { class: 'dur' }, tempo(a.dur)) : null),
+    h('span', { class: 'nome' }, a.nome),
+    h('span', { class: 'onde ' + cls }, txt));
+}
+function grade(g) {
+  const pecas = [];
+  for (const a of g.arquivos) for (const p of Object.keys(a.pecas || {})) if (!pecas.includes(p)) pecas.push(p);
+  // o vídeo que está rodando agora: a coluna dele acompanha ao vivo (o checklist só se refaz no fim da fila)
+  const vivoDe = {};
+  const f = ESTADO.e && ESTADO.e.fila;
+  for (const x of ((f && f.viva && f.agora) || [])) if (x.assinatura) vivoDe[x.assinatura] = x;
+  const cls = (a) => (SIT[a.situacao] || ['nunca'])[0] + (ESTADO.sel === a.assinatura ? ' sel' : '') + (vivoDe[a.assinatura] ? ' rodando' : '');
+  return h('div', { class: 'grade' }, h('table', null,
+    h('thead', null, h('tr', null, h('th', { class: 'canto' }, h('span', null, 'peças do motor')),
+      g.arquivos.map((a) => h('th', { class: 'vid ' + cls(a) }, capa(a))))),
+    h('tbody', null,
+      pecas.map((p) => h('tr', null, h('th', { class: 'peca', title: p }, nomePeca(p)),
+        g.arquivos.map((a) => {
+          const v = vivoDe[a.assinatura];
+          const onde = a.nome + ' · ' + nomePeca(p);
+          if (v && v.atual === p) return h('td', { class: 'cel ' + cls(a), title: onde + ': rodando agora' }, h('i', { class: 'girando' }));
+          const est = v && v.feitas.includes(p) ? 'ok' : v && v.falhou.includes(p) ? 'falhou' : (a.pecas || {})[p];
+          if (!est) return h('td', { class: 'cel ' + cls(a), title: onde + ': não é desta pista' }, h('i', { class: 'nada' }));
+          // o diário feito pelo Gemini ou pelo Gemma (o de reserva, na placa): os dois contam como feito; embaixo do ✓ diz qual
+          const fonte = est === 'ok' && (a.fontes || {})[p];
+          return h('td', { class: 'cel ' + cls(a), title: onde + ': ' + (CEL[est] || est) + (fonte ? ' pelo ' + fonte : '') + ((a.motivos || {})[p] ? ' — ' + a.motivos[p] : '') },
+            bolinha(est), fonte ? h('small', { class: 'fonte' }, fonte) : null);
+        }))),
+      h('tr', { class: 'rodar' }, h('th', { class: 'peca' }, ''),
+        g.arquivos.map((a) => h('td', { class: 'cel ' + cls(a) }, a.situacao === 'completo' ? h('span', { class: 'feito' }, 'feito')
+          : h('button', { class: 'acao', title: 'Rodar este vídeo agora (só o que falta)', disabled: !!(f && f.viva), onclick: () => rodar({ assinatura: a.assinatura }, a.nome) }, '▶ rodar')))))));
+}
+function agora(e) {
+  const f = e.fila; const ag = (f && f.viva && f.agora) || [];
+  const corpo = !ag.length
+    ? [h('p', { class: 'vazio' }, f && f.viva ? 'preparando a fila…' : 'nada rodando agora'), h('p', { class: 'prox' }, 'a fila da noite começa ' + (e.proxima || '01:00'))]
+    : ag.map((a) => h('div', { class: 'vid' },
+      a.assinatura ? h('span', { class: 'img' }, h('img', { src: capaUrl(a.assinatura), alt: '', onerror: (ev) => ev.target.remove() })) : null,
+      h('div', { class: 'nome', title: a.nome }, a.nome),
+      h('div', { class: 'peca' }, a.atual ? nomePeca(a.atual) : 'entre uma peça e outra'),
+      h('div', { class: 'barra' }, h('b', { style: { width: (a.pct || 0) + '%' } })),
+      h('div', { class: 'num' }, h('b', null, (a.pct || 0) + '%'), h('span', null, 'falta ' + minutos(a.falta_s))),
+      h('ul', { class: 'pecas' }, a.pecas.map((p) => {
+        const st = a.feitas.includes(p) ? 'ok' : a.falhou.includes(p) ? 'falhou' : p === a.atual ? 'agora' : 'espera';
+        return h('li', { class: st }, h('i', null, st === 'ok' ? '✓' : st === 'falhou' ? '✕' : st === 'agora' ? '▶' : '○'), nomePeca(p));
+      }))));
+  return h('aside', { class: 'agora' + (ag.length ? ' vivo' : '') }, h('h3', null, 'rodando agora'), corpo);
+}
+function desenhar() {
+  const e = ESTADO.e || { grupos: [], total: {} };
+  const t = e.total || {};
+  const f = e.fila;
+  const vivo = !!(f && f.viva);
+  const filaTxt = !f ? 'nenhuma fila ainda' : f.viva ? 'rodando agora' + (f.rodando.length ? ': ' + f.rodando.slice(0, 2).join(', ') + (f.rodando.length > 2 ? '…' : '') : '')
+    : f.parou ? 'última fila parou ' + dataBR(f.parou) + (f.porque ? ' (' + f.porque + ')' : '') : 'a última fila foi desligada no meio';
+  document.getElementById('cab').replaceChildren(
+    h('span', { class: 'marca' }, 'TANDERA'),
+    h('div', { class: 'disco' }, h('span', null, (t.completos || 0) + ' de ' + (t.arquivos || 0) + ' completos · falta ~' + num(t.maquina_h) + ' h de máquina'),
+      h('i', { class: 'barra-total' }, h('b', { style: { width: (t.arquivos ? Math.round(100 * t.completos / t.arquivos) : 0) + '%' } }))),
+    h('span', { class: 'fila' + (vivo ? ' viva' : '') }, filaTxt + ' · próxima: ' + (e.proxima || '01:00')),
+    h('button', { class: 'acao', disabled: vivo || e.sem_checklist, title: 'Rodar AGORA tudo o que falta (na ordem do checklist; a fila espera se o Premiere estiver aberto)',
+      onclick: () => rodar({}, 'tudo') }, '▶ rodar tudo'),
+    h('span', { class: 'auto', title: 'A lista se refaz sozinha quando uma análise termina ou uma peça do motor muda' }, e.atualizando ? 'atualizando…' : 'atualizado ' + dataBR(e.atualizado)));
+  const lados = document.getElementById('lados');
+  if (e.sem_checklist) {
+    lados.replaceChildren(h('p', { class: 'dica', style: { padding: '22px' } }, 'Ainda não tem checklist. Monte a lista com `tandera checklist --somar <pasta> --grupo G --pista P` e depois `tandera checklist`.'));
+    return;
+  }
+  const grupos = e.grupos || [];
+  if (!ESTADO.aba || !grupos.some((g) => g.grupo === ESTADO.aba)) ESTADO.aba = (grupos.find((g) => g.completos < g.arquivos.length && !g.pedir_ok) || grupos[0] || {}).grupo;
+  const g = grupos.find((x) => x.grupo === ESTADO.aba);
+  const rolagem = lados.querySelector('.grade');
+  const pos = rolagem && ESTADO.abaDesenhada === ESTADO.aba ? [rolagem.scrollLeft, rolagem.scrollTop] : null;    // trocou de aba = volta pro começo
+  ESTADO.abaDesenhada = ESTADO.aba;
+  lados.replaceChildren(agora(e), h('div', { class: 'corpo' },
+    h('nav', { class: 'abas' }, grupos.map((x) => h('button', { class: 'aba' + (x.grupo === ESTADO.aba ? ' on' : '') + (x.pedir_ok ? ' pedir-ok' : ''),
+      onclick: () => { ESTADO.aba = x.grupo; ESTADO.sel = null; desenhar(); } }, h('span', null, x.nome), h('b', null, x.completos + '/' + x.arquivos.length)))),
+    g ? h('div', { class: 'grupo' },
+      h('div', { class: 'resumo' },
+        h('span', { class: 'ok' }, h('b', null, g.completos), ' feitos'),
+        h('span', { class: 'falta' }, h('b', null, g.falta_peca), ' faltam peças'),
+        h('span', { class: 'nunca' }, h('b', null, g.nunca), ' nunca analisados'),
+        h('span', { class: 'h' }, num(g.horas) + ' h de vídeo' + (g.completos < g.arquivos.length ? ' · falta ~' + num(g.maquina_h) + ' h de máquina' : '')),
+        g.pedir_ok ? h('span', { class: 'so-ok', title: 'A fila da noite só pega este grupo com o seu OK' }, 'só com o seu OK') : null,
+        g.completos < g.arquivos.length ? h('button', { class: 'acao', disabled: vivo, title: 'Rodar agora tudo o que falta neste grupo',
+          onclick: () => rodar({ grupo: g.grupo }, g.nome) }, '▶ rodar este grupo') : h('span', { class: 'tudo' }, 'tudo analisado')),
+      g.arquivos.length ? grade(g) : h('p', { class: 'vazio-grupo' }, 'Nada aqui.')) : null,
+    h('p', { class: 'dica' }, '✓ feita na versão atual (nunca roda de novo; no diário, embaixo, quem fez: Gemini ou Gemma) · ✕ falta · ↻ a peça do motor atualizou (refaz) · vermelho = falhou (o motivo no mouse) · ponto apagado = não é desta pista. ' +
+      'A fila da noite pega só o que falta, na ordem das abas. ▶ roda agora (espera sozinha se o Premiere estiver aberto).')));
+  const nova = lados.querySelector('.grade');
+  if (nova && pos) { nova.scrollLeft = pos[0]; nova.scrollTop = pos[1]; }
+}
+vigiar();
+</script>
+</body>
+</html>

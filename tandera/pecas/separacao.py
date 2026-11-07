@@ -6,6 +6,11 @@ import os, shutil, subprocess
 
 from .. import base
 
+# 07/11: clipe do iPhone saía «sem voz» (26 falhas). Causa medida: o vídeo NÃO TEM voz e o audio-separator não grava o stem «quase
+# mudo» → voz = silêncio, resto = o mix. O mix_44k também é completado com silêncio até ROFO_MIN_S (clipe de 1,7 s) e a voz volta
+# aparada no tamanho do vídeo (apad só acrescenta: áudio maior fica igual).
+ROFO_MIN_S = 12
+
 
 def separar(som48k, pasta, placa=True, log=base.log):
     import numpy as np, soundfile as sf
@@ -17,20 +22,29 @@ def separar(som48k, pasta, placa=True, log=base.log):
         os.replace(parcial("mix_48k.wav"), p("mix_48k.wav"))
     if not os.path.exists(p("voz_48k.wav")):
         log("separação 1/2: voz (BS-Roformer)")
-        base.run(["ffmpeg", "-v", "error", "-y", "-i", p("mix_48k.wav"), "-ar", "44100", "-c:a", "pcm_f32le", p("mix_44k.wav")])
+        base.run(["ffmpeg", "-v", "error", "-y", "-i", p("mix_48k.wav"), "-ar", "44100", "-af", f"apad=whole_dur={ROFO_MIN_S}", "-c:a", "pcm_f32le", p("mix_44k.wav")])
         d = p("rofo"); shutil.rmtree(d, ignore_errors=True); os.makedirs(d)
         env = dict(os.environ); env["PYTHONIOENCODING"] = "utf-8"
         if not placa: env["CUDA_VISIBLE_DEVICES"] = "-1"   # 03/11: vazio no Windows o audio-separator lia como placa e quebrava ("Invalid device id"); -1 = sem placa
         subprocess.run([base.ROFO, p("mix_44k.wav"), "--output_dir", d, "--output_format", "WAV", "--model_filename",
                         "model_bs_roformer_ep_317_sdr_12.9755.ckpt"] + (["--model_file_dir", base.ROFO_MODELOS] if base.ROFO_MODELOS else []),
                        check=True, env=env, capture_output=True, creationflags=base.SEM_JANELA)
-        v = [f for f in os.listdir(d) if "vocal" in f.lower()][0]
-        base.run(["ffmpeg", "-v", "error", "-y", "-i", os.path.join(d, v), "-ar", "48000", "-ac", "2", "-c:a", "pcm_f32le", parcial("voz_48k.wav")])
-        x, _ = sf.read(p("mix_48k.wav"), dtype="float32", always_2d=True); v_, _ = sf.read(parcial("voz_48k.wav"), dtype="float32", always_2d=True)
+        v = [f for f in os.listdir(d) if "vocal" in f.lower()]
+        x, _ = sf.read(p("mix_48k.wav"), dtype="float32", always_2d=True)
+        if v:
+            base.run(["ffmpeg", "-v", "error", "-y", "-i", os.path.join(d, v[0]), "-ar", "48000", "-ac", "2", "-c:a", "pcm_f32le", parcial("voz_48k.wav")])
+            v_, _ = sf.read(parcial("voz_48k.wav"), dtype="float32", always_2d=True)
+        elif os.listdir(d):
+            v_ = np.zeros_like(x)              # 07/11: vídeo SEM voz → o audio-separator não grava a voz «quase muda»: voz = silêncio
+        else:
+            raise RuntimeError("o BS-Roformer não devolveu nada deste vídeo")
         n = min(len(x), len(v_))
+        sf.write(parcial("voz_48k.wav"), v_[:n], 48000, subtype="FLOAT")          # 07/11: tira o silêncio do enchimento (clipe curto)
         sf.write(parcial("resto_48k.wav"), x[:n] - v_[:n], 48000, subtype="FLOAT")
         os.replace(parcial("resto_48k.wav"), p("resto_48k.wav")); os.replace(parcial("voz_48k.wav"), p("voz_48k.wav"))
-        shutil.rmtree(d, ignore_errors=True); os.remove(p("mix_44k.wav"))
+        shutil.rmtree(d, ignore_errors=True)
+        try: os.remove(p("mix_44k.wav"))
+        except FileNotFoundError: pass
     if not os.path.exists(p("efeitos_48k.wav")):
         log("separação 2/2: música × efeitos (BandIt Plus)")
         ent = p("bandit_in"); os.makedirs(ent, exist_ok=True); shutil.copy2(p("resto_48k.wav"), os.path.join(ent, "resto.wav"))
@@ -38,7 +52,7 @@ def separar(som48k, pasta, placa=True, log=base.log):
                "--model_type", "bandit", "--config_path", os.path.join(base.CINE, "msst", "configs", "config_dnr_bandit_bsrnn_multi_mus64.yaml"),
                "--start_check_point", os.path.join(base.CINE, "modelos-teste", "bandit_plus", "model_bandit_plus_dnr_sdr_11.47.chpt"),
                "--input_folder", ent, "--store_dir", p("bandit")]
-        if not placa: cmd.append("--force_cpu")
+        if not placa and not base.MAC_MPS: cmd.append("--force_cpu")      # 04/11: no Mac o BandIt vai pro MPS (base.MAC_MPS)
         subprocess.run(cmd, check=True, capture_output=True, creationflags=base.SEM_JANELA)
         pa = os.path.join(p("bandit"), "resto"); mf = [f for f in os.listdir(pa) if "music" in f.lower() and f.endswith(".wav")][0]
         import librosa
@@ -82,7 +96,7 @@ def separar_varios(itens, placa=True, log=base.log, trabalho=None):
             for i in falta:
                 pasta = itens[i][1]
                 try:
-                    base.run(["ffmpeg", "-v", "error", "-y", "-i", P(pasta, "mix_48k.wav"), "-ar", "44100", "-c:a", "pcm_f32le", P(pasta, "mix_44k.wav")])
+                    base.run(["ffmpeg", "-v", "error", "-y", "-i", P(pasta, "mix_48k.wav"), "-ar", "44100", "-af", f"apad=whole_dur={ROFO_MIN_S}", "-c:a", "pcm_f32le", P(pasta, "mix_44k.wav")])
                     nomes[i] = os.path.join(ent, f"v{i:03d}.wav")
                     try: os.link(P(pasta, "mix_44k.wav"), nomes[i])
                     except OSError: shutil.copy2(P(pasta, "mix_44k.wav"), nomes[i])
@@ -98,17 +112,26 @@ def separar_varios(itens, placa=True, log=base.log, trabalho=None):
                 pasta = itens[i][1]
                 try:
                     vs = [f for f in os.listdir(d) if f.startswith(f"v{i:03d}_") and "vocal" in f.lower()]
-                    if not vs: raise RuntimeError("o BS-Roformer não devolveu a voz deste vídeo")
-                    base.run(["ffmpeg", "-v", "error", "-y", "-i", os.path.join(d, vs[0]), "-ar", "48000", "-ac", "2", "-c:a", "pcm_f32le",
-                              parcial(pasta, "voz_48k.wav")])
                     x, _ = sf.read(P(pasta, "mix_48k.wav"), dtype="float32", always_2d=True)
-                    v_, _ = sf.read(parcial(pasta, "voz_48k.wav"), dtype="float32", always_2d=True)
+                    if vs:
+                        base.run(["ffmpeg", "-v", "error", "-y", "-i", os.path.join(d, vs[0]), "-ar", "48000", "-ac", "2", "-c:a", "pcm_f32le",
+                                  parcial(pasta, "voz_48k.wav")])
+                        v_, _ = sf.read(parcial(pasta, "voz_48k.wav"), dtype="float32", always_2d=True)
+                    elif any(f.startswith(f"v{i:03d}_") for f in os.listdir(d)):
+                        v_ = np.zeros_like(x)          # 07/11: vídeo SEM voz → o audio-separator não grava a voz «quase muda»: voz = silêncio
+                    else:
+                        raise RuntimeError("o BS-Roformer não devolveu nada deste vídeo")
                     n = min(len(x), len(v_))
+                    sf.write(parcial(pasta, "voz_48k.wav"), v_[:n], 48000, subtype="FLOAT")   # 07/11: tira o enchimento (clipe curto)
                     sf.write(parcial(pasta, "resto_48k.wav"), x[:n] - v_[:n], 48000, subtype="FLOAT")
                     os.replace(parcial(pasta, "resto_48k.wav"), P(pasta, "resto_48k.wav")); os.replace(parcial(pasta, "voz_48k.wav"), P(pasta, "voz_48k.wav"))
-                    os.remove(P(pasta, "mix_44k.wav"))
+                    try: os.remove(P(pasta, "mix_44k.wav"))      # 07/11: já sumido (2 falhas em vídeo 4K longo) não derruba a voz já gravada
+                    except FileNotFoundError: pass
                 except Exception as e:
                     out[i] = e
+            # 07/11: a placa wdpub chegou a 99% de disco com um bloco 4K longo — a saída do BS-Roformer (15 GB) e a entrada dele (7,5 GB)
+            # ficavam até o fim do BandIt. Já foram lidas: saem aqui.
+            shutil.rmtree(ent, ignore_errors=True); shutil.rmtree(d, ignore_errors=True)
         # 2/2 música × efeitos: um BandIt pra todos os que faltam
         falta = [i for i in vivos() if not os.path.exists(P(itens[i][1], "efeitos_48k.wav"))]
         if falta:
@@ -121,7 +144,7 @@ def separar_varios(itens, placa=True, log=base.log, trabalho=None):
                    "--model_type", "bandit", "--config_path", os.path.join(base.CINE, "msst", "configs", "config_dnr_bandit_bsrnn_multi_mus64.yaml"),
                    "--start_check_point", os.path.join(base.CINE, "modelos-teste", "bandit_plus", "model_bandit_plus_dnr_sdr_11.47.chpt"),
                    "--input_folder", ent, "--store_dir", sai]
-            if not placa: cmd.append("--force_cpu")
+            if not placa and not base.MAC_MPS: cmd.append("--force_cpu")      # 04/11: no Mac o BandIt vai pro MPS (base.MAC_MPS)
             subprocess.run(cmd, check=True, capture_output=True, creationflags=base.SEM_JANELA)
             import librosa
             for i in falta:
@@ -230,6 +253,44 @@ def rodar(A, ctx):
 
 
 def stem(A, nome):
-    """caminho absoluto do stem (mix, voz, resto, musica, efeitos); None se o vídeo não tem som"""
+    """caminho absoluto do stem (mix, voz, resto, musica, efeitos); None se o vídeo não tem som.
+    06/11: no BRUTO a «separação» é o próprio som do vídeo (pistas.stems_da) — se o arquivo sumiu (a faxina tira as vozes do bruto: ele,
+    «a gente não precisa de voz separada nisso»), ele é refeito na hora, igual (ffmpeg bit a bit + a data do vídeo = a mesma assinatura)"""
     r = A["separacao"].get("stems", {}).get(nome)
-    return os.path.join(A.pasta, r.replace("/", os.sep)) if r else None
+    if not r: return None
+    p = os.path.join(A.pasta, r.replace("/", os.sep))
+    if not os.path.exists(p):
+        if r.replace("\\", "/").endswith("pecas/preparo/som48k.wav"):      # o «mix» é o som48k do preparo: o preparo refaz
+            from . import preparo
+            return preparo.caminho(A, "som48k")
+        _refazer_som_proprio(A, p)
+    return p
+
+
+def som_proprio(A):
+    """o wav do som do próprio vídeo do bruto (trabalho/som-proprio/<pasta>/mix48k.wav) — None se a separação não é essa"""
+    ent = (A["separacao"].get("entregue") or {}) if A.tem("separacao") else {}
+    if not ent or not all("som-proprio" in str(v).replace("\\", "/") for v in ent.values()): return None
+    return os.path.join(base.TANDERA, "trabalho", "som-proprio", os.path.basename(A.pasta), "mix48k.wav")
+
+
+def _refazer_som_proprio(A, p):
+    mix = som_proprio(A)
+    if not mix: return                                     # separação de verdade (modelo ou stems da edição): não se refaz sozinha
+    if not os.path.exists(mix):
+        if not os.path.exists(A.video): raise SystemExit(f"o som do bruto saiu da análise e o vídeo não está aqui pra refazer: {A.video}")
+        os.makedirs(os.path.dirname(mix), exist_ok=True)
+        base.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", A.video, "-map", "0:a:0", "-ac", "2", "-ar", "48000", "-c:a", "pcm_f32le",
+                  "-bitexact", mix + ".tmp.wav"])
+        mt = os.stat(A.video).st_mtime
+        os.replace(mix + ".tmp.wav", mix); os.utime(mix, (mt, mt))
+    ent = {k: mix for k in A["separacao"]["entregue"]}
+    if versao_entregue(ent) != A.versao("separacao"):
+        raise SystemExit(f"o som refeito do bruto saiu DIFERENTE do guardado ({versao_entregue(ent)} × {A.versao('separacao')}): não uso")
+    d = os.path.dirname(p); os.makedirs(d, exist_ok=True)
+    for k in ent:
+        dst = os.path.join(d, k + ".wav")
+        if not os.path.exists(dst):
+            try: os.link(mix, dst)
+            except OSError: shutil.copy2(mix, dst)
+    base.log(f"  som do bruto refeito do vídeo ({os.path.basename(A.video)}): igual ao guardado")

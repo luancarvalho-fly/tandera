@@ -10,6 +10,8 @@
 # Ambientes SEPARADOS porque as bibliotecas brigam (versões EXATAS do PC, servidor/requisitos/*.txt, tiradas por travas_do_pc.py):
 #   /root/venv_tandera (o Tandera)  ·  /root/venv_sep (BS-Roformer)  ·  /root/venv_cine (BandIt, msst, Python 3.13)  ·  /root/venv_ocr (PaddleOCR)
 # Uso:  bash /workspace/tandera/codigo/servidor/preparar_tandera.sh        (depois: source /root/ativar_tandera.sh)
+# 07/11: um preparo por vez na máquina (o adiantado à mão e o do runpod.py esperam um ao outro; o segundo passa rápido: «já pronto»)
+exec 9>/root/preparar.lock; flock 9
 # Rodar de novo é seguro: o que já está pronto é pulado.
 set -u
 W=${TANDERA_STORAGE:-/workspace/tandera}           # o storage (no WSL da prova: uma pasta comum)
@@ -51,7 +53,18 @@ TORCH_IDX=(--extra-index-url https://download.pytorch.org/whl/cu128 --index-stra
 amb() {   # amb <nome> <pasta> <teste>
   local nome=$1 dir=$2 teste=$3
   if [ -x $dir/bin/python ] && $dir/bin/python -c "$teste" > /dev/null 2>&1; then echo "ambiente $nome: já pronto"; return 0; fi
-  uv venv -q --python "$(PYV $nome)" $dir && uv pip install -q --python $dir/bin/python -r "$REQ/$nome.txt" "${TORCH_IDX[@]}" \
+  # 06/11 (1ª placa do Luan): o chumpy 0.70 (regua) monta o pacote importando o pip — no isolamento do uv não tem pip e o ambiente
+  # inteiro falhava. Os pacotes que precisam disso montam no próprio ambiente, com pip/setuptools/numpy já dentro
+  local semiso=()
+  if grep -qi '^chumpy==' "$REQ/$nome.txt"; then semiso=(--no-build-isolation-package chumpy); fi
+  # 07/11: o regua do PC (WSL) roda com versões que brigam com as dependências declaradas (openface-test pede tqdm 4.66.2 e timm
+  # 1.0.15; o PC tem 4.70.1 e 0.9.12 — o pip deixou passar). A lista É o ambiente inteiro do PC (pip freeze): instala exatamente ela,
+  # sem o uv tentar resolver (--no-deps)
+  if [ "$nome" = "regua" ]; then semiso+=(--no-deps); fi
+  uv venv -q --python "$(PYV $nome)" $dir \
+    && { [ ${#semiso[@]} -eq 0 ] || uv pip install -q --python $dir/bin/python pip wheel \
+           "$(grep -i '^setuptools==' "$REQ/$nome.txt" || echo setuptools)" "$(grep -i '^numpy==' "$REQ/$nome.txt" || echo numpy)"; } \
+    && uv pip install -q --python $dir/bin/python -r "$REQ/$nome.txt" "${TORCH_IDX[@]}" "${semiso[@]}" \
     && echo "ambiente $nome ok ($(PYV $nome))" || echo "FALHOU: ambiente $nome"
 }
 amb tandera /root/venv_tandera "import torch, faster_whisper, beat_this, transnetv2_pytorch, torchaudio, transformers"
@@ -60,7 +73,13 @@ if /root/venv_tandera/bin/python -c "import onnxruntime as o; assert 'CUDAExecut
   uv pip uninstall -q --python /root/venv_tandera/bin/python onnxruntime onnxruntime-gpu > /dev/null 2>&1
   uv pip install -q --python /root/venv_tandera/bin/python --reinstall --no-deps onnxruntime-gpu==1.23.2 && echo "onnxruntime da placa ok"
 fi
+# 07/11: o rodar_lote.py roda no python do SISTEMA e o preparo das fotos (HEIC do iPhone) é feito nele → sem o pillow-heif aqui, 166
+# fotos falharam com «cannot identify image file»
+python -c "import pillow_heif" 2>/dev/null || { python -m pip install -q pillow-heif==1.8.1 --break-system-packages > /dev/null 2>&1 && echo "pillow-heif do sistema ok"; }
+python -c "import pillow_heif" 2>/dev/null || echo "FALTA: pillow-heif no python do sistema (fotos HEIC)"
 amb sep /root/venv_sep "import audio_separator, torch"
+# 06/11: o OpenFace 3.0 da peça boca (no PC ele mora no WSL, /opt/regua/.venv; aqui roda direto)
+amb regua /root/venv_regua "import openface, torch"
 amb cine /root/venv_cine "import torch, torchaudio, omegaconf, ml_collections, librosa"
 # PaddleOCR: o paddlepaddle-gpu (~2 GB, servidor da Paddle) fica guardado no storage depois da 1ª vez (01/11 no Flynder: o download
 # caiu no meio numa máquina). Mesma versão do PC (3.3.1).
@@ -100,6 +119,14 @@ if ! traz tandera_pesos $P; then
   $PYT -c "from huggingface_hub import snapshot_download as s; s('mispeech/ced-base', local_dir='$P/ced-base')" > /dev/null 2>&1
   ls $P/audio-separator/*.ckpt $P/ced-base/model.safetensors > /dev/null 2>&1 && guarda tandera_pesos $P || echo "FALTA: Roformer ou CED (não guardei)"
 fi
+# 06/11: os pesos das peças de imagem que só existem no PC (rostos, corpo, câmera, boca, pose) chegam pelo enviar.py --pesos em do_pc/;
+# cp -n = o que já está no disco fica (rodar de novo é seguro), o que é novo entra mesmo quando o tandera_pesos.tar veio do storage
+[ -d $W/do_pc ] && cp -rn $W/do_pc/. $P/ && echo "pesos do PC (imagem): $(ls $P | tr '\n' ' ')"
+for f in tandera_modelos/scrfd/det_10g.onnx tandera_modelos/adaface/adaface_ir101_webface12m.ckpt tandera_modelos/emotiefflib/enet_b0_8_best_vgaf.onnx \
+         regua/modelos/sapiens2/pose/sapiens2_1b_pose.safetensors regua/modelos/cotracker3/scaled_offline.pth regua/modelos/openface3 \
+         regua/repos/sapiens2 regua/repos/co-tracker pose_landmarker_heavy.task; do
+  [ -e $P/$f ] || echo "FALTA: $f (no PC: python servidor/enviar.py --pesos)"
+done
 traz hf_local $HFL || true
 # o que falta no cache (do storage ou não) baixa agora e o .tar do storage é refeito; tudo lá = nada muda.
 # 01/11 (prova no WSL): o código do CED-Base, ao abrir, busca a lista das 527 etiquetas em OUTRO repositório (topel/ConvNeXt-Tiny-AT);
@@ -108,7 +135,10 @@ $PYT - <<'EOF' | tee /tmp/hf_novo.txt
 from huggingface_hub import snapshot_download as s
 for repo, pad in [("mobiuslabsgmbh/faster-whisper-large-v3-turbo", None),      # fala
                   ("ATH-MaaS/Ovis-Omni-Embedding-3B", ["model/*"]),             # ovis
-                  ("topel/ConvNeXt-Tiny-AT", ["class_labels_indices.csv"])]:    # as etiquetas que o CED-Base lê
+                  ("topel/ConvNeXt-Tiny-AT", ["class_labels_indices.csv"]),     # as etiquetas que o CED-Base lê
+                  ("google/siglip2-so400m-patch14-384", None),                  # imagem (06/11)
+                  ("laion/larger_clap_general", None),                          # som (06/11)
+                  ("Qwen/Qwen3-Embedding-8B", None)]:                           # busca (06/11)
     try:
         s(repo, allow_patterns=pad, local_files_only=True); print("ok (já no disco)", repo, flush=True)
     except Exception:
@@ -164,6 +194,7 @@ export PATH=$FF:/root/.local/bin:\$PATH
 export PYTHONPATH=/root/TANDERA TANDERA_PERFIL=servidor TANDERA_STORAGE=$W
 export TANDERA_PY=/root/venv_tandera/bin/python TANDERA_PY_OCR=/root/venv_ocr/bin/python TANDERA_PY_CINE=/root/venv_cine/bin/python
 export TANDERA_ROFO=/root/venv_sep/bin/audio-separator TANDERA_PESOS=$P TANDERA_ANALISES=\${TANDERA_ANALISES:-/root/analises}
+export TANDERA_MODELOS=$P/tandera_modelos TANDERA_PY_REGUA=/root/venv_regua/bin/python
 export HF_HUB_CACHE=$HFL HF_HUB_OFFLINE=1 HF_HUB_DISABLE_XET=1 TORCH_HOME=$TH PADDLE_PDX_CACHE_HOME=$PDX OLLAMA_MODELS=$OM
 export PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True FORCE_QWENVL_VIDEO_READER=decord PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # os núcleos que o aluguel DEIXA usar (01/11 no Flynder: a máquina mostrava 256, o RunPod libera 27; cada biblioteca abria 256 frentes)
@@ -181,5 +212,7 @@ $TANDERA_PY -m tandera versao | head -3
 $TANDERA_ROFO --version 2>&1 | tail -1
 $TANDERA_PY_CINE -c "import torch; print('cine: torch', torch.__version__, torch.cuda.is_available())"
 $TANDERA_PY_OCR -c "import paddle; print('ocr: paddle', paddle.__version__, 'cuda', paddle.device.is_compiled_with_cuda())" 2>&1 | tail -1
+$TANDERA_PY -c "import mediapipe, skimage, bitsandbytes; print('imagem: mediapipe', mediapipe.__version__, '· bitsandbytes', bitsandbytes.__version__)" 2>&1 | tail -1
+$TANDERA_PY_REGUA -c "import openface, torch; print('boca: openface ok · torch', torch.__version__, torch.cuda.is_available())" 2>&1 | tail -1
 du -sh $P $HFL $TH $PDX $OM 2>/dev/null | tr '\n' ' '; echo
 marca "PRONTO"

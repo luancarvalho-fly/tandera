@@ -29,12 +29,21 @@ def rodar(A, ctx):
     for k in range(0, len(quadros), LOTE):
         lote = quadros[k:k + LOTE]
         lista, sai = os.path.join(pasta, f"lista_{k // LOTE:03d}.json"), os.path.join(pasta, f"saida_{k // LOTE:03d}.json")
-        json.dump([_wsl(d) for _, d in lote], open(lista, "w"))
-        subprocess.run(["wsl", "-d", "Ubuntu-24.04", "-u", "root", "--", "bash", "-c",
-                        f"tr -d '\\r' < {sh} > /tmp/tandera_boca.sh && bash /tmp/tandera_boca.sh {_wsl(lista)} {_wsl(sai)} "
+        if os.name == "nt":
+            json.dump([_wsl(d) for _, d in lote], open(lista, "w"))
+            subprocess.run(["wsl", "-d", "Ubuntu-24.04", "-u", "root", "--", "bash", "-c",
+                            f"tr -d '\\r' < {sh} > /tmp/tandera_boca.sh && bash /tmp/tandera_boca.sh {_wsl(lista)} {_wsl(sai)} "
                         f"{_wsl(os.path.dirname(__file__))} {_wsl(os.path.join(base.REGUA, 'modelos', 'openface3'))}"], check=True,
-                       capture_output=True, creationflags=base.SEM_JANELA)
-        res = json.load(open(sai)); medida.update({q: res.get(_wsl(d), {}) for q, d in lote})
+                           capture_output=True, creationflags=base.SEM_JANELA)
+            res = json.load(open(sai)); medida.update({q: res.get(_wsl(d), {}) for q, d in lote})
+        else:   # 06/11: no servidor (Linux) o MESMO OpenFace 3.0 roda direto, sem WSL, com os mesmos pesos (REGUA/modelos/openface3)
+            json.dump([d for _, d in lote], open(lista, "w"))
+            ofw = "/tmp/ofw"; os.makedirs(ofw, exist_ok=True)
+            if not os.path.lexists(os.path.join(ofw, "weights")):
+                os.symlink(os.path.join(base.REGUA, "modelos", "openface3"), os.path.join(ofw, "weights"))
+            subprocess.run([base.PY_REGUA, os.path.join(os.path.dirname(os.path.abspath(__file__)), "_boca_openface_wsl.py"), lista, sai,
+                            os.path.join(ofw, "weights")], check=True, capture_output=True, cwd=ofw)
+            res = json.load(open(sai)); medida.update({q: res.get(d, {}) for q, d in lote})
     folga = p.get("folga_aac_s", 0.0)
     fala_t = [(w["ini"] - folga, w["fim"] - folga) for w in (A.get("fala") or {}).get("palavras", [])]
     falando = lambda t: any(a <= t <= b for a, b in fala_t)                       # noqa: E731

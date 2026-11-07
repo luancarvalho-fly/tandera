@@ -5,7 +5,7 @@ resposta (raw_decode: às vezes o Gemini escreve mais alguma coisa depois e o js
   PC       = chave GRÁTIS do AI Studio (~\\.gemini\\chave-api.txt DE QUEM USA; decisão do Luan: pago nunca no PC; a chave nunca vem no pacote), revezando os Flash na cota
   servidor = chave da Fly (GEMINI_API_KEY), gemini-3-flash-preview (o motor do catálogo)
 A chave nunca é mostrada."""
-import json, os, time, urllib.error, urllib.request
+import json, os, re, time, urllib.error, urllib.request
 
 from .. import base
 
@@ -89,9 +89,11 @@ def modelos_flash():
         ms = json.load(_chamar("GET", f"{API_G}/v1beta/models?pageSize=200", timeout=60)).get("models", [])
         nomes = [m["name"].split("/")[-1] for m in ms if "generateContent" in m.get("supportedGenerationMethods", [])]
         fl = [n for n in nomes if "flash" in n and "pro" not in n and "image" not in n and "tts" not in n and "live" not in n and "lite" not in n]
-        return sorted(fl, key=lambda n: (n != "gemini-3.8-flash", n != "gemini-3-flash-preview", n)) or ["gemini-3.8-flash"]
+        # 06/11: o 3-flash-preview primeiro — o 3.8-flash da chave grátis segura a resposta até o tempo-limite (03/11 e de novo 06/11:
+        # 8 min no 1º vídeo do lote antes de cair no preview); ele fica de reserva pra quando a cota do preview acabar
+        return sorted(fl, key=lambda n: (n != "gemini-3-flash-preview", n != "gemini-3.8-flash", n)) or ["gemini-3-flash-preview"]
     except Exception:
-        return ["gemini-3.8-flash", "gemini-3-flash-preview"]
+        return ["gemini-3-flash-preview", "gemini-3.8-flash"]
 
 
 def _desembrulha(x):
@@ -155,14 +157,113 @@ def gemini_video(mp4, pedido, log=base.log):
         except Exception: pass
 
 
+# ------------------------------------------------------------------ DIÁRIO DO GEMMA (04/11)
+# Ele (Kakashi 04/11 14:13): «isso aqui ou é do Gema ou é do Gemini» · «se você já analisou isso aqui com o Gema, tem que entrar o diário
+# do Gema aqui». O Gemma 4 12B tirou 8/10 × 9/10 do Gemini no teste de 31/10 e é o que o time usa pra substituir o Gemini. Sem cota (ou
+# sem chave), o MESMO diário sai do Gemma, no mesmo formato, pra a busca e o Flynder lerem igual. Diferença: o Gemma não ouve — ele vê
+# QUADROS (1/s, com o tempo escrito) e lê a TRANSCRIÇÃO da fala e o texto da tela; o «ouve» só tem o que a transcrição diz.
+MAX_QUADROS_GEMMA = 16
+
+
+def _pedido_gemma(pedido, n, falas, escrito, dur):
+    p = pedido.replace(
+        "Assista o vídeo INTEIRO, imagem E SOM.",
+        f"Você recebe {n} quadros do vídeo, EM ORDEM, cada um com o tempo escrito no canto (o vídeo tem {base.mmss(dur)}), a TRANSCRIÇÃO "
+        "da fala com os tempos e o texto lido na tela. Você NÃO ouve o vídeo: o campo «ouve» só pode ter o que a transcrição diz (ou "
+        "vazio); não invente som.")
+    p += "\n\nTRANSCRIÇÃO (m:ss texto):\n" + (falas or "(sem fala)")
+    if escrito: p += "\n\nTEXTO NA TELA (lido por OCR): " + escrito
+    return p
+
+
+def gemma(A, ctx, pedido):
+    """o diário pelo Gemma no Ollama da máquina (usa a placa): quadros do preparo + fala + texto → o mesmo JSON do Gemini"""
+    import cv2
+    from . import olho, preparo
+    P = A["preparo"]; dur = float(P.get("duracao") or 0)
+    foto = P.get("tipo") == "foto"
+    pasta = A.dir("diario")
+    if foto:
+        ims = [preparo.caminho(A, "foto")]
+    else:
+        q1 = preparo.caminho(A, "q1")
+        qs = sorted(os.listdir(q1)) if q1 and os.path.isdir(q1) else []
+        if not qs: return None
+        passo = max(1, -(-len(qs) // MAX_QUADROS_GEMMA))
+        ims = []
+        for q in qs[::passo][:MAX_QUADROS_GEMMA]:
+            seg = int(os.path.splitext(q)[0]) - 1                     # q1 = fps=1: o quadro n é o segundo n-1
+            im = cv2.imread(os.path.join(q1, q))
+            if im is None: continue
+            ims.append(olho.quadro_com_tempo(im, os.path.join(pasta, f"g_{seg:05d}.jpg"), base.mmss(seg)))
+    segs = ((A.get("fala") or {}) if A.tem("fala") else {}).get("segmentos") or []
+    falas = "\n".join(f"{base.mmss(s.get('ini', 0))} {s.get('txt', '').strip()}" for s in segs if s.get("txt", "").strip())[:6000]
+    texto = (A.get("texto") or {}) if A.tem("texto") else {}
+    vistos = []
+    for it in texto.get("itens") or []:
+        if it.get("texto") and it["texto"] not in vistos: vistos.append(it["texto"])
+    p = _pedido_gemma(pedido, len(ims), falas, " · ".join(vistos[:60]), dur)
+    base.liberar_torch()
+    for m in base.ollama_carregados():
+        if m != olho.MODELO: base.ollama_descarrega(m)
+    # 07/11 (lote do RunPod): ~7% dos diários do Gemma vinham com o JSON quebrado (falta vírgula/aspas/«:», texto cortado) e a peça
+    # FALHAVA. Agora: conserto barato do texto (vírgula sobrando, aspas curvas, quebra de linha dentro de string); se ainda não abrir,
+    # pede de novo (até 3 vezes) — o Gemma raramente erra duas vezes seguidas o mesmo vídeo
+    ultimo = None
+    for tentativa in range(3):
+        r = olho.perguntar(p + "\n\nResponda SÓ o JSON, sem texto antes ou depois." +
+                           ("\nATENÇÃO: a resposta anterior veio com JSON inválido; confira vírgulas e aspas." if tentativa else ""),
+                           ims, num_predict=3500)
+        txt = r["texto"].strip()
+        if txt.startswith("```"): txt = txt.strip("`").split("\n", 1)[-1].rsplit("```", 1)[0]
+        txt = txt[min((i for i in (txt.find("{"), txt.find("[")) if i >= 0), default=0):]
+        try:
+            diario, _ = json.JSONDecoder().raw_decode(txt); break
+        except json.JSONDecodeError as e:
+            ultimo = e
+            t2 = re.sub(r",\s*([}\]])", r"\1", txt.replace("“", '"').replace("”", '"'))
+            t2 = re.sub(r'"([^"\n]*)\n([^"\n]*)"', r'"\1 \2"', t2)
+            try:
+                diario, _ = json.JSONDecoder().raw_decode(t2); break
+            except json.JSONDecodeError:
+                continue
+    else:
+        raise ultimo
+    if not base.SEGURAR: base.ollama_descarrega(olho.MODELO)
+    return {"diario": _desembrulha(diario), "modelo": olho.MODELO, "fonte": "gemma", "plano": "local (Gemma no Ollama, sem cota/sem chave)",
+            "quadros": len(ims), "uso_tokens": {"entrada": r.get("tokens_entrada"), "saida": r.get("tokens_saida")}, "segundos": r["s"]}
+
+
 def rodar(A, ctx):
     from . import preparo
     t = time.time()
+    pedido = (_foto(PEDIDO_SENSIVEL) if getattr(ctx, "sensivel", False) else PEDIDO_FOTO) if A["preparo"].get("tipo") == "foto" \
+        else (PEDIDO_SENSIVEL if getattr(ctx, "sensivel", False) else PEDIDO)
+    # com a placa liberada: sem chave ou sem cota no Gemini → o Gemma faz o diário na hora (sem placa, o erro volta e a fila decide)
+    if getattr(ctx, "placa", False) and (time.time() < _SEM_COTA[0] or not _tem_chave()):
+        r = gemma(A, ctx, pedido)
+        if r: return r
+    try:
+        return _rodar_gemini(A, ctx, t)
+    except (SemCota, RuntimeError, OSError):          # 04/11: C0038 falhou com 429+503+demora («não respondeu»), não «sem cota»
+        if not getattr(ctx, "placa", False): raise
+        r = gemma(A, ctx, pedido)
+        if not r: raise
+        return r
+
+
+def _tem_chave():
+    try: _chave(); return True
+    except RuntimeError: return False
+
+
+def _rodar_gemini(A, ctx, t):
+    from . import preparo
     if A["preparo"].get("tipo") == "foto":
         r = gemini_foto(preparo.caminho(A, "foto"), _foto(PEDIDO_SENSIVEL) if getattr(ctx, "sensivel", False) else PEDIDO_FOTO)
     else:
         mp4 = preparo.caminho(A, "leve480")
         if not mp4: return {"sem_imagem": True}
         r = gemini_video(mp4, PEDIDO_SENSIVEL if getattr(ctx, "sensivel", False) else PEDIDO, ctx.log)
-    return {"diario": r["diario"], "modelo": r["modelo"], "plano": _chave()[1], "uso_tokens": r["uso"], "segundos": round(time.time() - t, 1),
-            "erros_antes": r["erros_antes"]}
+    return {"diario": r["diario"], "modelo": r["modelo"], "fonte": "gemini", "plano": _chave()[1], "uso_tokens": r["uso"],
+            "segundos": round(time.time() - t, 1), "erros_antes": r["erros_antes"]}

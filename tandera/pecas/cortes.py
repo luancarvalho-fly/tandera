@@ -2,7 +2,7 @@
 """CORTES no quadro exato: AutoShot (1ª opinião, ~97% no quadro exato no EP01) UNIDO com a TransNetV2 (2ª opinião, ±1 quadro), como
 a /sonoplastia decidiu em 01/11 (F2: o AutoShot sozinho perdeu 3 cortes macios do V009); a diferença de pixel marca POSSÍVEL jump cut
 (não vira corte sozinha: conferir no olho). O corte é o 1º quadro do plano novo. Na placa quando dá (onnx CUDA / torch)."""
-import subprocess
+import os, subprocess
 
 import numpy as np
 
@@ -13,8 +13,13 @@ LIMIAR_TRANSNET = 0.5
 
 
 def _quadros_pequenos(video, W=48, H=27, fmt="rgb24", c=3):
-    r = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-i", video, "-map", "0:v:0", "-an", "-vf", f"scale={W}:{H}:flags=bilinear",
-                        "-fps_mode", "passthrough", "-pix_fmt", fmt, "-f", "rawvideo", "-"], capture_output=True, creationflags=base.SEM_JANELA)
+    def ler(hw):
+        return subprocess.run(["ffmpeg", "-nostdin", "-v", "error", *hw, "-i", video, "-map", "0:v:0", "-an", "-vf",
+                               f"scale={W}:{H}:flags=bilinear", "-fps_mode", "passthrough", "-pix_fmt", fmt, "-f", "rawvideo", "-"],
+                              capture_output=True, creationflags=base.SEM_JANELA)
+    # 07/11: no servidor o 4K abre pelo chip de vídeo da placa (NVDEC); o processador só reduz. Se o chip recusar, o jeito de sempre
+    r = ler(["-hwaccel", "cuda"]) if os.name != "nt" else None
+    if r is None or r.returncode != 0 or not r.stdout: r = ler([])
     t = W * H * c
     q = np.frombuffer(r.stdout[: len(r.stdout) // t * t], np.uint8)
     return q.reshape(-1, H, W, c) if c > 1 else q.reshape(-1, H, W)

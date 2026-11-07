@@ -57,9 +57,20 @@ def cortar(video, pasta, dur, threads=2):
     os.makedirs(pasta, exist_ok=True); out, t = [], 0.0
     while t < dur - 0.5:
         d = min(TRECHO_S, dur - t); p = os.path.join(pasta, f"{len(out):05d}.mp4")
-        base.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-threads", str(threads), "-ss", f"{t:.3f}", "-t", f"{d:.3f}", "-i", video,
-                  "-threads", str(threads), "-vf", "scale='if(gt(iw,ih),448,-2)':'if(gt(iw,ih),-2,448)'", "-r", "10", "-c:v", "libx264",
-                  "-preset", "ultrafast", "-crf", "28", "-c:a", "aac", "-ac", "1", "-ar", "16000", p])
+        cmd = ["ffmpeg", "-nostdin", "-v", "error", "-y", "-threads", str(threads), "-ss", f"{t:.3f}", "-t", f"{d:.3f}", "-i", video,
+               "-threads", str(threads), "-vf", "scale='if(gt(iw,ih),448,-2)':'if(gt(iw,ih),-2,448)'", "-r", "10", "-c:v", "libx264",
+               "-preset", "ultrafast", "-crf", "28", "-c:a", "aac", "-ac", "1", "-ar", "16000", p]
+        # 07/11: um pedaço CORROMPIDO do vídeo (2026_C0024, h264 com erro) derrubava o Ovis do vídeo inteiro → tenta de novo
+        # descartando o quadro quebrado; se ainda falhar, pula SÓ esse trecho de 4 s (o resto do vídeo fica com retrato)
+        try:
+            base.run(cmd)
+        except Exception:
+            try:
+                i = cmd.index("-ss"); base.run(cmd[:i] + ["-fflags", "+discardcorrupt", "-err_detect", "ignore_err"] + cmd[i:])
+            except Exception:
+                t += TRECHO_S; continue
+        if not os.path.exists(p) or os.path.getsize(p) < 1000:
+            t += TRECHO_S; continue
         out.append((p, t, t + d)); t += TRECHO_S
     return out
 

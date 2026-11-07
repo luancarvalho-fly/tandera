@@ -101,6 +101,7 @@ class LinhaNuvem(threading.Thread):
     def __init__(self, log):
         super().__init__(daemon=True)
         self.q, self.log, self.prontos, self.trava = queue.Queue(), log, [], threading.Lock()
+        self.gemma = []                # (vídeo, quer_busca) sem cota no Gemini: o diário sai pelo Gemma no bloquinho da placa
         self.parar, self.sem_cota, self.pendentes = False, False, 0
 
     def por(self, video, quer_busca):
@@ -115,22 +116,18 @@ class LinhaNuvem(threading.Thread):
             if x is None: return
             video, quer_busca = x
             try:
-                # 03/11 ~23h (ele: «foca em terminar... essa madrugada»): sem cota, a linha NÃO larga os diários até a próxima noite —
-                # espera a cota voltar (a do Gemini grátis zera à meia-noite do Pacífico, ~05h aqui) e tenta o MESMO vídeo de novo a cada
-                # ESPERA_COTA, na ordem da fila; a placa segue com o resto enquanto isso
-                while not self.parar:
-                    motor.rodar(video, ["diario"], placa=False, log=self.log)
-                    A = Analise(video)
-                    erro = ((A.d.get("rodadas") or [{}])[-1].get("falhou") or {}).get("diario", "")
-                    if "sem cota" not in erro.lower(): break
+                # (03/11 ~23h a linha esperava a cota voltar e tentava o mesmo vídeo a cada ESPERA_COTA.) 04/11 (ele, Kakashi 14:13: «se você já analisou isso aqui com o Gema, tem que entrar o diário do Gema aqui»): sem cota, o
+                # vídeo NÃO espera mais a cota voltar — vai pro bloquinho da placa e o Gemma faz o diário (pecas/diario.py, gemma())
+                motor.rodar(video, ["diario"], placa=False, log=self.log)
+                A = Analise(video)
+                erro = ((A.d.get("rodadas") or [{}])[-1].get("falhou") or {}).get("diario", "")
+                if erro:                   # sem cota, sem chave ou o Gemini não respondeu (C0038, 04/11): o Gemma faz
                     if not self.sem_cota:
-                        self.log(f"☁ sem cota no Gemini: os diários esperam a cota voltar (tento de novo a cada {ESPERA_COTA // 60} min)")
+                        self.log(f"☁ o Gemini não fez o diário ({erro[:80]}): os diários seguem pelo Gemma, na placa, junto da busca")
                     self.sem_cota = True
-                    for _ in range(ESPERA_COTA):
-                        if self.parar: break
-                        time.sleep(1)
-                if self.parar: continue
-                if self.sem_cota: self.log("☁ a cota do Gemini voltou: seguindo com os diários")
+                    with self.trava: self.gemma.append((video, quer_busca))
+                    continue
+                if self.sem_cota: self.log("☁ o Gemini respondeu de novo: seguindo com os diários dele")
                 self.sem_cota = False
                 if A.tem("diario") and quer_busca:
                     with self.trava: self.prontos.append(video)
@@ -142,20 +139,25 @@ class LinhaNuvem(threading.Thread):
     def pegar_prontos(self):
         with self.trava:
             p, self.prontos = self.prontos, []
-        return p
+            g, self.gemma = self.gemma, []
+        return p, g
 
 
 def _busca(lote, nuvem, log):
-    """o bloquinho da busca: os vídeos cujo diário ficou pronto (modelo da busca carregado uma vez pra todos)"""
-    vs = nuvem.pegar_prontos()
-    if not vs: return
-    log(f"busca: {len(vs)} vídeo(s) com o diário pronto")
+    """o bloquinho da placa: a busca dos vídeos cujo diário ficou pronto + o diário PELO GEMMA dos que ficaram sem cota no Gemini
+    (o diário roda antes da busca no mesmo bloco: a busca depende dele)"""
+    vs, gs = nuvem.pegar_prontos()
+    if not vs and not gs: return
+    log(f"bloquinho da placa: busca de {len(vs)} vídeo(s) com o diário pronto"
+        + (f" · diário pelo Gemma de {len(gs)} (sem cota no Gemini)" if gs else ""))
+    itens = [{"video": v, "pecas": list(DEPOIS_DA_NUVEM), "id": os.path.basename(v)} for v in vs]
+    itens += [{"video": v, "pecas": ["diario"] + (list(DEPOIS_DA_NUVEM) if qb else []), "id": os.path.basename(v)} for v, qb in gs]
     try:
-        lote.rodar_bloco([{"video": v, "pecas": list(DEPOIS_DA_NUVEM), "id": os.path.basename(v)} for v in vs], placa=True, log=log)
+        lote.rodar_bloco(itens, placa=True, log=log)
     except SystemExit:
         raise
     except Exception as e:
-        log(f"✗ bloquinho da busca falhou: {type(e).__name__}: {str(e)[:300]}")
+        log(f"✗ bloquinho da placa falhou: {type(e).__name__}: {str(e)[:300]}")
 
 
 def rodar(itens, nome, ate=None, bloco=4, completar=False, com=()):
@@ -211,7 +213,7 @@ def rodar(itens, nome, ate=None, bloco=4, completar=False, com=()):
             for i in grupo:
                 try:
                     st, caem = stems_da(pista, i["arquivo"], log)
-                    todas = [p for p in pecas_da(pista, i["arquivo"]) if p not in caem]
+                    todas = [p for p in pecas_da(pista, i["arquivo"], i.get("bateria") or BATERIA_CLI[0]) if p not in caem]
                     pecas = [p for p in todas if p not in NUVEM + DEPOIS_DA_NUVEM]
                     if any(p in todas for p in NUVEM):
                         i["_nuvem"] = any(p in todas for p in DEPOIS_DA_NUVEM)      # o diário vai pra linha da nuvem depois do bloco
@@ -255,8 +257,8 @@ def rodar(itens, nome, ate=None, bloco=4, completar=False, com=()):
                     E.marca(i["arquivo"], estado="falhou", falhou={"bloco": f"{type(e).__name__}: {str(e)[:200]}"})
         log(f"bloco {pista} ({len(grupo)}) em {time.monotonic() - t0:.0f} s")
     # a placa acabou: espera a linha da nuvem (até a hora) e faz a busca dos últimos diários
-    # com hora marcada (--ate), espera a cota do Gemini voltar até a hora; sem hora, não fica preso esperando a cota
-    while nuvem.pendentes and not _parar(ate) and (ate or not nuvem.sem_cota):
+    # (04/11: sem cota não prende mais ninguém — o vídeo vai pro Gemma no bloquinho da placa e a linha segue)
+    while nuvem.pendentes and not _parar(ate):
         time.sleep(20)
         try: _busca(lote, nuvem, log)
         except SystemExit: break
@@ -292,6 +294,9 @@ def _outra_fila():
     return m if m.get("pid") != os.getpid() and _viva(int(m.get("pid") or 0)) else None
 
 
+BATERIA_CLI = [None]      # 06/11: --bateria da linha de comando (vale pra fila inteira; um item pode ter a sua: "bateria")
+
+
 def main(argv=None):
     import argparse
     ap = argparse.ArgumentParser(prog="tandera fila")
@@ -299,7 +304,9 @@ def main(argv=None):
     ap.add_argument("--nome"); ap.add_argument("--ate", help="HH:MM: não começa bloco novo depois disso"); ap.add_argument("--bloco", type=int, default=4)
     ap.add_argument("--checklist", action="store_true", help="começa e continua pelo que FALTA no checklist (tandera/checklist.py)")
     ap.add_argument("--com", default="", help="grupos que pedem o OK dele, já liberados (ex.: 4-curso-aulas)")
+    ap.add_argument("--bateria", default="", help="só estas baterias (reconhecimento, som, profunda): a fase (06/11)")
     x = ap.parse_args(argv)
+    BATERIA_CLI[0] = x.bateria or None
     if sys.stdout is None or not sys.stdout.isatty() and os.environ.get("TANDERA_SEM_JANELA", "1") == "1":
         _sem_janela()
     com = [g for g in x.com.split(",") if g]

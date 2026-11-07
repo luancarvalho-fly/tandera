@@ -41,20 +41,36 @@ PISTAS = {
         pecas=["cortes", "fala", "separacao", "musica", "batida", "rotulos", "sinal", "efeitos", "ovis"], idioma="pt"),
     "tutorial": dict(
         o_que="tutorial de som de outro criador (ex.: a aula de um curso de som): fala/texto/rótulos no vídeo inteiro, o pesado só nas janelas de exemplo",
-        pecas=["fala", "texto", "rotulos"], idioma="en", exemplos=True),
+        pecas=["fala", "texto", "rotulos"], profunda=["olho"], idioma="en", exemplos=True),
     "trailer": dict(
         o_que="trailer/vídeo de referência de som",
         pecas=["cortes", "fala", "separacao", "musica", "batida", "rotulos", "sinal", "efeitos", "ovis"], idioma="en"),
     "kakashi": dict(
         o_que="sessão do Kakashi (tela + microfone + som do PC prontos): sem separação, cortes nem batida",
-        pecas=["fala", "texto", "olho", "rotulos", "ovis"], idioma="pt", video="tela.mp4", stems_kakashi={"voz": "fala.wav", "resto": "pc.wav"}),
+        pecas=["fala", "texto", "olho", "rotulos", "ovis"], profunda=["olho"], idioma="pt", video="tela.mp4", stems_kakashi={"voz": "fala.wav", "resto": "pc.wav"}),
 }
 
 # TRAVA DO OVIS (03/11, ele: «você deu mole de não ter usado o OVS no RunPod... o OVS é um modelo de embedding... o melhor pra gente»;
 # 31/10: «O OVIS É A FUNDAÇÃO... da onde que você tirou que poderia ignorar o Ovis»): toda pista que analisa vídeo liga o Ovis. O tutorial
 # liga ele nas janelas de exemplo (janelas.PASSADA2), a decisão dele de 01/11 («o pesado só nos exemplos»).
+# AS BATERIAS (06/11, Luan: «em vez de fazer a passagem completa em tudo, você ir fazendo por bateria... quais modelos seriam da bateria
+# de reconhecimento... esses aqui vão pra fase 2, que já é a fase de análise profunda, que aí vai rodar esses modelos que demoram mais.
+# Que aí o restante, ou a gente não faz, ou a gente faz com calma de madrugada aqui no PC»). Cada peça do motor mora em UMA bateria:
+#   reconhecimento = barata (~0,84 s de máquina por s de vídeo na 5070): roda em TUDO; é com ela que se escolhe o material
+#   som            = a mixagem (separação/música/batida/rótulos/efeitos): só onde tem mixagem (editado, Plexus, trailer)
+#   profunda       = cara (~8,8 s/s, 10×): movimento, câmera, boca, olho — só no material ESCOLHIDO pro vídeo (dias/takes)
+# A pista diz o TIPO de vídeo; a bateria diz a FASE. Sem --bateria = a pista como sempre foi (o checklist mede isso).
+BATERIAS = {
+    "reconhecimento": ["preparo", "cortes", "fala", "entonacao", "texto", "rostos", "imagem", "som", "ovis", "sinal", "diario", "busca"],
+    "som": ["separacao", "musica", "batida", "rotulos", "efeitos"],
+    "profunda": ["corpo", "camera", "boca", "olho"],
+}
+
 for _n, _p in PISTAS.items():
     assert _p.get("exemplos") or "ovis" in (_p.get("pecas") or padrao()), f"pista {_n} sem o Ovis (a fundação da busca)"
+_todas = [p for b in BATERIAS.values() for p in b]
+assert len(_todas) == len(set(_todas)), "peça em duas baterias"
+assert set(_todas) == {p for p, g in PECAS.items() if not g.get("ferramenta")},     f"peça sem bateria (ou bateria com peça que não existe): {set(_todas) ^ {p for p, g in PECAS.items() if not g.get('ferramenta')}}"
 for _n, _p in PISTAS.items():
     for _x in (_p.get("pecas") or []) + (_p.get("fotos") or []):
         assert _x in PECAS and not PECAS[_x].get("ferramenta"), f"pista {_n}: peça {_x} não existe no manifesto"
@@ -64,8 +80,25 @@ def eh_foto(arq):
     return arq.lower().endswith(FOTOS)
 
 
-def pecas_da(pista, arquivo=None):
-    """as peças que a pista liga pra este arquivo (foto liga só as de imagem); None = as padrão do manifesto"""
+def bateria_de(peca):
+    return next(b for b, ps in BATERIAS.items() if peca in ps)
+
+
+def pecas_da(pista, arquivo=None, baterias=None):
+    """as peças que a pista liga pra este arquivo (foto liga só as de imagem); None = as padrão do manifesto.
+    baterias (06/11) = só as peças dessas baterias; «profunda» LIGA as peças caras (movimento, câmera, boca, olho) mesmo que a pista
+    não as tenha por padrão — é a fase 2, só no material escolhido"""
+    if baterias:
+        if isinstance(baterias, str): baterias = [b.strip() for b in baterias.split(",") if b.strip()]
+        for b in baterias:
+            if b not in BATERIAS: raise SystemExit(f"bateria desconhecida: {b} (tem: {', '.join(BATERIAS)})")
+        base_ = pecas_da(pista, arquivo)
+        if "profunda" in baterias and not (arquivo and eh_foto(arquivo)):
+            # a pista diz quais peças fundas fazem sentido nela (sessão do Kakashi = tela: só o olho); sem dizer = as quatro
+            base_ = base_ + [p for p in PISTAS[pista].get("profunda", BATERIAS["profunda"]) if p not in base_]
+        quer = {p for b in baterias for p in BATERIAS[b]}
+        from .manifesto import ORDEM
+        return [p for p in ORDEM if p in base_ and p in quer]
     if pista not in PISTAS: raise SystemExit(f"pista desconhecida: {pista} (tem: {', '.join(PISTAS)})")
     P = PISTAS[pista]
     if arquivo and eh_foto(arquivo):
