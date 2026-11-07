@@ -27,6 +27,9 @@ import stems as S  # noqa: E402
 W = os.environ.get("TANDERA_STORAGE", "/workspace/tandera")
 ANALISES = os.environ.get("TANDERA_ANALISES", "/root/analises")
 TRABALHO = os.environ.get("TANDERA_TRABALHO", "/root/trabalho")
+# 07/11: sem esta variável no ambiente o preparo NÃO tira os quadros pequenos dos cortes/sinal da mesma leitura do 4K (preparo._raw) e
+# os cortes abriam o 4K original de novo pelo processador (~4–5 min por vídeo, placa a 2–15 %)
+os.environ["TANDERA_TRABALHO"] = TRABALHO
 PY = os.environ.get("TANDERA_PY", sys.executable)
 MAQ = os.environ.get("RUNPOD_POD_ID") or socket.gethostname()
 try:
@@ -104,10 +107,16 @@ def receber(it, fila):
     (incremental) e o servidor.json → (vídeo local, stems, pasta da análise, pasta de trabalho)"""
     iid = it["id"]
     tr = os.path.join(TRABALHO, iid); os.makedirs(tr, exist_ok=True)
-    v = copia_local(it, os.path.join(tr, os.path.basename(it["rel"])))
-    a = assinatura(v)
-    if a != it["assinatura"]:
-        raise RuntimeError(f"o vídeo chegou DIFERENTE do PC (assinatura {a} × {it['assinatura']}): não analiso (a análise não seria achada)")
+    if it.get("sem_video"):
+        # 06/11 (baterias): as peças pedidas não leem o vídeo (diário/busca: leem a análise que o PC mandou) — o vídeo não subiu
+        v = os.path.join(tr, os.path.basename(it["rel"]))
+        if not os.path.exists(os.path.join(W, "analises", it["pasta"], "analise.json")):
+            raise RuntimeError("sem vídeo e sem a análise do PC no storage: não tem de onde partir")
+    else:
+        v = copia_local(it, os.path.join(tr, os.path.basename(it["rel"])))
+        a = assinatura(v)
+        if a != it["assinatura"]:
+            raise RuntimeError(f"o vídeo chegou DIFERENTE do PC (assinatura {a} × {it['assinatura']}): não analiso (a análise não seria achada)")
     stems = {}
     if it.get("stems"):
         locais = {p: [copia_local(x, os.path.join(tr, "stems", p, os.path.basename(x["rel"]))) for x in arqs] for p, arqs in it["stems"].items()}
@@ -119,8 +128,8 @@ def receber(it, fila):
     if not os.path.exists(os.path.join(pasta, "analise.json")) and os.path.exists(os.path.join(guardada, "analise.json")):
         # já analisado antes (outra máquina, ou uma rodada que falhou numa peça): começa do que está no storage — o Tandera só roda o que falta
         log(f"{iid}: a análise já está no storage: continua dela (incremental)")
-        if shutil.which("rsync"): subprocess.run(["rsync", "-a", guardada + "/", pasta + "/"], check=True)
-        else: shutil.copytree(guardada, pasta, dirs_exist_ok=True)
+        # 07/11: o storage do RunPod é geesefs — «rsync -a» dá erro 11 (memória, 01/11: «rsync -a não grava»); cópia simples, sem permissões
+        os.makedirs(pasta, exist_ok=True); subprocess.run(["cp", "-r", guardada + "/.", pasta + "/"], check=True)
     os.makedirs(pasta, exist_ok=True)
     json.dump({"video_pc": it["video_pc"], "id": iid, "lote": fila.d, "maquina": MAQ, "grupo": it["grupo"], "assinatura": it["assinatura"],
                "stems_pc": {p: [x["pc"] for x in arqs] for p, arqs in it.get("stems", {}).items()}},
@@ -164,10 +173,7 @@ def entregar(it, pasta, arq_log, cod, t0, resultado=None):
     # guarda no storage (é de lá que o PC busca; o disco da máquina some quando ela desliga)
     dst = os.path.join(W, "analises", it["pasta"])
     os.makedirs(dst, exist_ok=True)
-    if shutil.which("rsync"):
-        subprocess.run(["rsync", "-a", pasta + "/", dst + "/"], check=True)
-    else:
-        shutil.copytree(pasta, dst, dirs_exist_ok=True)
+    subprocess.run(["cp", "-r", pasta + "/.", dst + "/"], check=True)   # 07/11: sem rsync -a (geesefs)
     return {"s": round(time.monotonic() - t0, 1), "pecas_s": tempos, "falhou": falhou, "pasta": it["pasta"], "maquina": MAQ}
 
 
@@ -304,6 +310,15 @@ def main():
     L = json.load(open(x.lote, encoding="utf-8"))
     fila = Fila(L["nome"])
     if x.estado: estado(L, fila); return
+    # 07/11: a fila pode ser aberta cedo à mão (enquanto o PC ainda manda as análises) e depois o runpod.py abre de novo na mesma
+    # máquina: duas filas com o MESMO nome de máquina pegariam o mesmo vídeo. A segunda vê a primeira viva e sai sem fazer nada
+    # (o runpod.py segue vendo «rodar_lote.py» vivo e acompanha normal)
+    meu = os.getpid()
+    for l in subprocess.run(["pgrep", "-af", "rodar_lote.py"], capture_output=True, text=True).stdout.splitlines():
+        pid, _, linha = l.partition(" ")
+        if pid.isdigit() and int(pid) != meu and "--lote" in linha and os.path.basename(x.lote) in linha and "--estado" not in linha \
+                and not linha.startswith(("bash", "sh ")):
+            print(f"já tem uma fila deste lote rodando nesta máquina (pid {pid}): esta sai", flush=True); return
     if x.soltar or x.refazer_falhos:
         for it in L["itens"]:
             e = fila.estado(it["id"])

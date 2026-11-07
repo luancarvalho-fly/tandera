@@ -88,6 +88,10 @@ def estado_pecas(pasta, pecas):
             out[p] = ("falhou", ult[p][:120]) if p in ult else ("falta", "")
         elif str(g.get("versao", "")).startswith("entregue-") or g.get("versao") == PECAS[p]["versao"]:
             out[p] = ("ok", g.get("perfil", ""))
+            if p == "diario":         # 04/11 (Kakashi 14:31): «Diário Gema e Diário Gemini, tá ligado?» — os dois valem; a tela diz qual
+                dj = _ler(os.path.join(pasta, "pecas", "diario.json"), {})
+                gemma = dj.get("fonte") == "gemma" or str(dj.get("modelo") or "").startswith("gemma")
+                out[p] = ("ok", "Gemma" if gemma else "Gemini")
         else:
             out[p] = ("velha", f"{g.get('versao')} → {PECAS[p]['versao']}")
     return out
@@ -120,6 +124,7 @@ def atualizar(log=base.log):
         trabalho = [p for p, (s, _) in e.items() if s != "ok"]
         r.update(assinatura=sig, pista=pista, analise=pasta, pecas={p: s for p, (s, _) in e.items()},
                  motivos={p: m for p, (s, m) in e.items() if m and s != "ok"},
+                 fontes={p: m for p, (s, m) in e.items() if s == "ok" and p == "diario"},
                  situacao="completo" if not trabalho else ("nunca analisado" if not pasta else "falta peça"),
                  falta=trabalho, maquina_s=round(sum(vel.get(p, 0.3) for p in trabalho if PECAS[p]["onde"] != "nuvem") * dur, 1))
         linhas.append(r)

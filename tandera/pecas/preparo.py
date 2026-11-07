@@ -310,6 +310,18 @@ def rodar(A, ctx):
 
 
 def caminho(A, nome):
-    """caminho absoluto de um arquivo do preparo (q1, mini, leve480, fala16k, som48k)"""
+    """caminho absoluto de um arquivo do preparo (q1, mini, leve480, fala16k, som48k).
+    06/11 (ele: «isso aí você pode apagar»): o som48k (a cópia do áudio do vídeo, 25 GB somando tudo) não fica guardado — sumiu, é refeito
+    na hora do vídeo, com a MESMA trilha e o mesmo comando do preparo, pra peça que precisar (separação de verdade, som, o «mix»)"""
     r = A["preparo"]["arquivos"].get(nome)
-    return os.path.join(A.pasta, r.replace("/", os.sep)) if r else None
+    if not r: return None
+    p = os.path.join(A.pasta, r.replace("/", os.sep))
+    if nome == "som48k" and not os.path.exists(p):
+        trilha = A["preparo"].get("trilha_som")
+        if not trilha or not os.path.exists(A.video):
+            raise SystemExit(f"o som48k saiu da análise e não dá pra refazer (vídeo {'sem trilha' if not trilha else 'fora do lugar'}): {A.video}")
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        base.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", A.video, "-map", trilha, "-ac", "2", "-ar", "48000", "-c:a", "pcm_f32le", p + ".tmp.wav"])
+        os.replace(p + ".tmp.wav", p)
+        base.log(f"  som48k refeito do vídeo ({os.path.basename(A.video)})")
+    return p

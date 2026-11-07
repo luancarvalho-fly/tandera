@@ -137,12 +137,89 @@ def juntar(S, para, sem_audio=False):
     return D, feito, avisos
 
 
+RCLONE = os.environ.get("TANDERA_RCLONE") or "rclone"   # pacote da Fly: o rclone do PATH
+RCONF = os.path.expanduser(os.path.join("~", ".rclone", "rclone.conf"))
+DRIVE_RES = os.environ.get("TANDERA_DRIVE_RESULTADOS") or "drive:TANDERA-RESULTADOS"
+
+
+def pela_nuvem(a, cmd, R, pegar, lista):
+    """06/11 (ele: «o resultado das análises, qual que é mais rápido, ir pro Drive ou ir pro meu PC? Porque a placa vai ficar ligada
+    nesse tempo»): a placa empacota o que vem (um .tar) e manda pro Drive dele (~150 MB/s; direto pro PC era ~9 MB/s, com as placas
+    ligadas). Roda SOLTO na placa (nohup) e aqui só confiro com conexões curtas. Depois o PC baixa do Drive SOZINHO, num processo à
+    parte (--do-drive), e o runpod já pode desligar tudo. Devolve False se a placa não tem rclone (aí vai pelo caminho antigo)."""
+    if "SIM" not in subprocess.run(cmd + ["command -v rclone >/dev/null && [ -s /root/.config/rclone/rclone.conf ] && echo SIM"],
+                                   capture_output=True, text=True, encoding="utf-8", errors="replace").stdout:
+        return False
+    nome = time.strftime("%Y%m%d-%H%M%S")
+    exc = ("--exclude='*/pecas/separacao/*.wav' --exclude='*/pecas/preparo/som48k.wav' --exclude='*/pecas/preparo/fala16k.wav'"
+           if a.sem_audio else "")
+    # 07/11: com 845 pastas a lista na linha de comando passava do limite do Windows (32 mil caracteres) e o pacote nem começava
+    # (estado «?» pra sempre) → a lista vai ANTES, como arquivo, pela entrada do ssh
+    subprocess.run(cmd + [f"mkdir -p /workspace/_trazer && cat > /workspace/_trazer/{nome}.lista"], input=("\n".join(pegar) + "\n").encode("utf-8"),
+                   check=True, timeout=300)          # em bytes: como texto o Windows punha \r em cada nome e o tar não achava nenhum
+    script = (f"cd {R} && echo EMPACOTANDO > /root/trazer.estado && "
+              f"tar --ignore-failed-read {exc} -cf /workspace/_trazer/{nome}.tar -T /workspace/_trazer/{nome}.lista && echo SUBINDO > /root/trazer.estado && "
+              f"rclone copyto --drive-chunk-size 256M /workspace/_trazer/{nome}.tar {DRIVE_RES}/{nome}.tar && echo PRONTO > /root/trazer.estado "
+              f"|| echo FALHOU > /root/trazer.estado")
+    subprocess.run(cmd + [f"rm -f /root/trazer.estado; nohup bash -c {shlex.quote(script)} > /root/trazer.log 2>&1 < /dev/null &"], timeout=120)
+    t0, ult = time.time(), ""
+    while True:
+        time.sleep(15)
+        try:
+            est = subprocess.run(cmd + ["cat /root/trazer.estado 2>/dev/null || echo ?"], capture_output=True, text=True, encoding="utf-8",
+                                 errors="replace", timeout=90).stdout.strip()
+        except subprocess.TimeoutExpired:
+            continue
+        if est != ult: print(f"resultados: {est} ({int(time.time() - t0)} s)", flush=True); ult = est
+        if est == "PRONTO": break
+        if est == "FALHOU":
+            log = subprocess.run(cmd + ["tail -5 /root/trazer.log"], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
+            raise SystemExit(f"os resultados não subiram pro Drive: {log}")
+    # o PC baixa e soma depois, sozinho (a placa já pode desligar)
+    pend = os.path.join(a.para, f"_pendente_{nome}.json")
+    base.salvar_json(pend, {"nome": nome, "pegar": pegar, "lista": {p: lista[p] for p in pegar}, "sem_audio": a.sem_audio})
+    subprocess.Popen([sys.executable, os.path.abspath(__file__), "--do-drive", pend, "--para", a.para],
+                     creationflags=0x00000008 | 0x00000200 | 0x08000000,   # solto do processo do runpod, sem janela
+                     stdout=open(pend[:-5] + ".log", "w", encoding="utf-8"), stderr=subprocess.STDOUT, close_fds=True)
+    print(f"resultados no Drive ({DRIVE_RES}/{nome}.tar); o PC baixa e soma sozinho (log: {pend[:-5]}.log)", flush=True)
+    return True
+
+
+def do_drive(pend, para):
+    """a 2ª metade: Drive → PC, desempacota, soma nas análises do PC, marca como trazidas, atualiza o checklist"""
+    P = ler(pend); nome = P["nome"]
+    origem = os.path.join(para, f"_chegando_{nome}"); os.makedirs(origem, exist_ok=True)
+    tarq = os.path.join(origem, "_r.tar")
+    t0 = time.time()
+    subprocess.run([RCLONE, "--config", RCONF, "copyto", f"{DRIVE_RES}/{nome}.tar", tarq, "--multi-thread-streams", "8"], check=True,
+                   creationflags=0x08000000)
+    print(f"baixado do Drive em {time.time() - t0:.0f} s ({os.path.getsize(tarq) / 1e9:.1f} GB)", flush=True)
+    tar = r"C:\Windows\System32\tar.exe" if os.path.exists(r"C:\Windows\System32\tar.exe") else "tar"
+    subprocess.run([tar, "-xf", tarq, "-C", origem], check=True, creationflags=0x08000000)
+    os.remove(tarq)
+    pastas = sorted(d for d in os.listdir(origem) if os.path.exists(os.path.join(origem, d, "analise.json")))
+    for d in pastas:
+        D, feito, avisos = juntar(os.path.join(origem, d), para, P.get("sem_audio"))
+        print(f"{d}: {feito} → {D}", flush=True)
+        for x in avisos: print("   aviso:", x)
+    marca = os.path.join(para, "_trazidas.json")
+    ja = ler(marca) if os.path.exists(marca) else {}
+    ja.update({p: P["lista"][p] for p in pastas if p in P["lista"]}); base.salvar_json(marca, ja)
+    shutil.rmtree(origem, ignore_errors=True)
+    os.replace(pend, pend.replace("_pendente_", "_feito_"))
+    subprocess.run([os.path.join(T, "tandera.cmd"), "checklist"], capture_output=True, creationflags=0x08000000)
+    print(f"FIM: {len(pastas)} análises somadas no PC em {time.time() - t0:.0f} s", flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ssh", default=""); ap.add_argument("--wsl", default=""); ap.add_argument("--storage", default="/workspace/tandera")
     ap.add_argument("--de", default=""); ap.add_argument("--para", default=base.ANALISES); ap.add_argument("--so", default="")
-    ap.add_argument("--sem-audio", action="store_true")
+    ap.add_argument("--sem-audio", action="store_true"); ap.add_argument("--direto", action="store_true", help="sem o Drive (o caminho antigo)")
+    ap.add_argument("--do-drive", default="", help="(interno) baixa do Drive o pacote pendente e soma no PC")
     a = ap.parse_args()
+    if a.do_drive:
+        return do_drive(a.do_drive, a.para)
     so = {s.strip() for s in a.so.split(",") if s.strip()}
     os.makedirs(a.para, exist_ok=True)
     if a.de:
@@ -161,6 +238,7 @@ def main():
         pegar = sorted(p for p, m in lista.items() if (not so or p in so) and ja.get(p) != m)
         print(f"{len(lista)} análises no servidor · {len(pegar)} novas ou mudadas", flush=True)
         if not pegar: return
+        if a.ssh and not a.direto and pela_nuvem(a, cmd, R, pegar, lista): return
         origem = os.path.join(a.para, "_chegando"); os.makedirs(origem, exist_ok=True)
         exc = ("--exclude='*/pecas/separacao/*.wav' --exclude='*/pecas/preparo/som48k.wav' --exclude='*/pecas/preparo/fala16k.wav'"
                if a.sem_audio else "")

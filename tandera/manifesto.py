@@ -38,7 +38,7 @@ PECAS = {
         versao="2026-11-01c", onde="placa", depende=["separacao"], perfis=["pc", "servidor"], vram_gb=2.5),
     "entonacao": dict(
         o_que="altura da voz no começo/fim de cada trecho, final (sobe/desce), sílabas por segundo",
-        modelo="Praat (parselmouth)", versao="2026-10-18", onde="cpu", depende=["separacao", "fala"], perfis=["pc"], vram_gb=0),
+        modelo="Praat (parselmouth)", versao="2026-10-18", onde="cpu", depende=["separacao", "fala"], perfis=["pc", "servidor"], vram_gb=0),
     "batida": dict(
         o_que="batidas e tempos fortes no ataque (ms), grade fechada na onda, corte × batida",
         modelo="Beat This! (final0) + ataque na onda + grade reta ajustada",
@@ -50,11 +50,11 @@ PECAS = {
     "camera": dict(
         o_que="movimento de câmera por plano (a CURVA: deslocamento e escala quadro a quadro)",
         modelo="CoTracker3 offline (scaled, autocast fp16 na placa) + geometria (RANSAC)", versao="2026-11-01b", onde="placa", depende=["cortes"],
-        perfis=["pc"], vram_gb=2.0),
+        perfis=["pc", "servidor"], vram_gb=2.0),
     "corpo": dict(
         o_que="corpo / fase da repetição por plano (articulação que mais mexe, reps, entra/sai)",
         modelo="Sapiens2-1B fp16 (308 pontos) + DETR-R101", versao="2026-11-01", onde="placa", depende=["cortes"],
-        perfis=["pc"], vram_gb=5.5, padrao=False),
+        perfis=["pc", "servidor"], vram_gb=5.5, padrao=False),
     "pisada": dict(
         o_que="esqueleto quadro a quadro pra achar pisada (ferramenta: o /sonoplastia pisadas.py chama por trecho)",
         modelo="MediaPipe Pose Landmarker heavy (CPU) — venceu RTMW-x (0/4) na F2: 4/4", versao="2026-11-01", onde="cpu",
@@ -62,11 +62,11 @@ PECAS = {
     "rostos": dict(
         o_que="rostos 1/s: caixa, digital (quem é), expressão",
         modelo="SCRFD 10G (buffalo_l) + AdaFace IR-101 WebFace12M + EmotiEffLib enet_b0_8_best_vgaf (ONNX)",
-        versao="2026-11-01", onde="placa", depende=["preparo"], perfis=["pc"], vram_gb=1.5),
+        versao="2026-11-01", onde="placa", depende=["preparo"], perfis=["pc", "servidor"], vram_gb=1.5),
     "boca": dict(
         o_que="boca × fala por plano (a boca mexe junto da fala medida?)",
         modelo="OpenFace 3.0 (WSL Ubuntu-24.04)", versao="2026-10-21", onde="placa", depende=["cortes", "fala"],
-        perfis=["pc"], vram_gb=1.0, padrao=False),
+        perfis=["pc", "servidor"], vram_gb=1.0, padrao=False),
     "texto": dict(
         o_que="texto na tela (quadros 1/s + 2 por plano)",
         modelo="PaddleOCR 3.7 (PP-OCRv5, paddlepaddle-gpu, ambiente .venv-ocr)", versao="2026-11-01", onde="placa",
@@ -76,12 +76,13 @@ PECAS = {
     "diario": dict(
         o_que="diário do vídeo inteiro (o que se vê E ouve, falas de ouro, reações, momentos, etiquetas, trecho SENSÍVEL); foto = o mesmo diário de 1 item",
         modelo="Gemini Flash, vídeo 480p com som / foto 1600 px (PC: chave grátis, o Flash mais novo que a conta tiver, revezando na cota; "
-               "servidor: gemini-3-flash-preview pela chave da Fly)", versao="2026-11-02", onde="nuvem",
-        depende=["preparo"], perfis=["pc"], vram_gb=0),
+               "servidor: a mesma chave grátis revezando os Flash, ou a da Fly se GEMINI_API_KEY vier); sem cota ou sem chave, com a placa: "
+               "Gemma 4 12B no Ollama (16 quadros com o tempo + a fala + o texto da tela; 04/11)", versao="2026-11-02", onde="nuvem",
+        depende=["preparo"], perfis=["pc", "servidor"], vram_gb=0),   # 06/11: servidor também (Luan: «a opção de fazer pelo RunPod ou pelo computador»)
     "busca": dict(
         o_que="índice de busca no diário (frase → momento)",
         modelo="BM25 + Qwen3-Embedding-8B (4 bits na 5070)", versao="2026-11-01", onde="placa", depende=["diario"],
-        perfis=["pc"], vram_gb=6.0),
+        perfis=["pc", "servidor"], vram_gb=6.0),   # 06/11: servidor também (o mesmo nf4, pra a busca sair igual à do PC)
     "olho": dict(
         o_que="ficha de cada plano (quem, onde, ação, linha do tempo) olhando 2–3 quadros com o tempo escrito",
         modelo="Gemma 4 12B (Ollama gemma4:12b, think desligado, semente fixa)", versao="2026-10-23", onde="placa",
@@ -93,14 +94,14 @@ PECAS = {
     "som": dict(
         o_que="retrato do som em janelas de 5 s a cada 2,5 s (som parecido, busca por frase em inglês)",
         modelo="CLAP laion/larger_clap_general", versao="2026-11-01", onde="placa", depende=["preparo"],
-        perfis=["pc"], vram_gb=1.2),
+        perfis=["pc", "servidor"], vram_gb=1.2),
     "rotulos": dict(
         o_que="etiquetas AudioSet do som SEM a voz, a cada 0,5 s (porta, motor, multidão...)",
         modelo="CED-Base (mispeech/ced-base, AudioSet 527) — melhor etiquetador do teste de 01/11 (75% × YAMNet 55%)",
         versao="2026-11-01", onde="placa", depende=["separacao"], perfis=["pc", "servidor"], vram_gb=0.6),
     "imagem": dict(
         o_que="retrato de cada quadro 1/s (imagem parecida, busca por frase)",
-        modelo="SigLIP 2 so400m-patch14-384", versao="2026-11-01", onde="placa", depende=["preparo"], perfis=["pc"], vram_gb=2.0),
+        modelo="SigLIP 2 so400m-patch14-384", versao="2026-11-01", onde="placa", depende=["preparo"], perfis=["pc", "servidor"], vram_gb=2.0),
     "sinal": dict(
         o_que="ataques do som (10 ms), picos de movimento, voz soando, vãos sem fala, eventos candidatos (som + imagem + etiqueta)",
         modelo="conta pura (fluxo espectral com limiar local; diferença de quadro); cortes do AutoShot", versao="2026-11-01",

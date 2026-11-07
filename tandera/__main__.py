@@ -7,7 +7,12 @@
                                                    tutorial «só nos exemplos» (02/11): 1ª passada no vídeo inteiro, o pesado só nas janelas
   tandera fala <áudio ou vídeo> [--idioma pt] [--dispositivo cuda|cpu] [--palavras] [--json]
   tandera buscar <vídeo> "frase"                   busca no diário (BM25 + Qwen3-Embedding-8B)
-  tandera onde <vídeo>                             a pasta da análise guardada desse vídeo"""
+  tandera onde <vídeo>                             a pasta da análise guardada desse vídeo
+  tandera painel [--porta 7822] [--sem-abrir]      o painel do checklist no navegador: cada vídeo × cada peça do motor, ▶ rodar
+  tandera runpod --grupo G [--pecas diario,busca] [--so-contar] [--manter] | --desligar
+                                                   o que falta do grupo, rodado numa placa do RunPod (06/11: PC OU RunPod)
+  tandera diarios-gemini [--ate 23:30] [--max N] [--so-contar]
+                                                   a cota grátis do Gemini do dia em diários (sem placa; tarefa das 06h)"""
 import argparse, json, os, sys
 
 try:
@@ -26,6 +31,15 @@ def main():
         from .fila import main as fila_main
         from .checklist import main as ck_main
         (fila_main if sys.argv[1] == "fila" else ck_main)(sys.argv[2:]); return
+    if len(sys.argv) > 1 and sys.argv[1] == "diarios-gemini":          # 06/11: a cota grátis do dia em diários (tandera/diarios_gemini.py)
+        from .diarios_gemini import main as dg_main
+        dg_main(sys.argv[2:]); return
+    if len(sys.argv) > 1 and sys.argv[1] == "runpod":                  # 06/11: rodar no RunPod em vez do PC (tandera/runpod.py)
+        from .runpod import main as runpod_main
+        runpod_main(sys.argv[2:]); return
+    if len(sys.argv) > 1 and sys.argv[1] == "painel":                  # 04/11: o painel do checklist (tandera/painel.py)
+        from .painel import main as painel_main
+        painel_main(sys.argv[2:]); return
     ap = argparse.ArgumentParser(prog="tandera", description="o Tandera: um motor de análise só, sempre o mais novo")
     sub = ap.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("analisar"); a.add_argument("video"); a.add_argument("--pecas", default=""); a.add_argument("--refazer", default="")
@@ -33,6 +47,7 @@ def main():
     a.add_argument("--pasta"); a.add_argument("--versao-de", action="append", default=[])
     a.add_argument("--stem", action="append", default=[], help="voz/música PRONTAS: voz=<wav> resto=<wav> (ou musica=, efeitos=, mix=)")
     a.add_argument("--pista", help="as peças da PISTA (tandera\\pistas.py: bruto, editado, plexus-stems, tutorial…); --pecas passa por cima")
+    a.add_argument("--bateria", help="só estas baterias (reconhecimento, som, profunda; vírgula): a fase da análise (06/11)")
     sub.add_parser("versao")
     sub.add_parser("pistas")
     fl = sub.add_parser("fila", add_help=False); fl.add_argument("resto", nargs=argparse.REMAINDER)
@@ -84,7 +99,7 @@ def main():
             exemplos(x.video, not x.sem_placa, x.idioma or PISTAS[x.pista].get("idioma")); return
         if not x.pecas:
             st, caem = stems_da(x.pista, x.video, base.log)
-            x.pecas = ",".join(p for p in pecas_da(x.pista, x.video) if p not in caem)
+            x.pecas = ",".join(p for p in pecas_da(x.pista, x.video, x.bateria) if p not in caem)
             if st and not x.stem: x.stem = [f"{k}={v}" for k, v in st.items()]
         x.idioma = x.idioma or PISTAS[x.pista].get("idioma")
     if x.cmd == "exemplos":
