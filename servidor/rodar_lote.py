@@ -123,6 +123,16 @@ def receber(it, fila):
         mt = {os.path.join(tr, "stems", p, os.path.basename(x["rel"])): x["mtime"] for p, arqs in it["stems"].items() for x in arqs}
         stems = S.stems_prontos(locais, os.path.join(tr, "stems", "_juntos"), mt)
         log(f"{iid}: stems prontos ({', '.join(f'{p}={len(locais[p])}' for p in sorted(locais))})")
+    # 07/11 (ele, depois do lote de 842: «nenhum desses vídeos precisam de separação de voz, música e efeitos... é literalmente inútil e
+    # vai ocupar um espaço do crl»): no BRUTO a «separação» é o PRÓPRIO som do vídeo (pistas.stems_da, a mesma regra das filas do PC
+    # desde 06/11) — custo zero, a fala transcreve o som inteiro. O caminho do RunPod não chamava a regra: o lote rodou BS-Roformer +
+    # BandIt em tudo (114 GB de wav, disco cheio, falhas). Vídeo sem som: sem stems e sem as peças de som (fala, som).
+    it["_caem"] = []
+    if not stems and it.get("pista") == "bruto" and not it.get("sem_video"):
+        from tandera.pistas import stems_da
+        st, caem = stems_da("bruto", v, log)
+        if st: stems = st
+        it["_caem"] = caem
     pasta = os.path.join(ANALISES, it["pasta"])
     guardada = os.path.join(W, "analises", it["pasta"])
     if not os.path.exists(os.path.join(pasta, "analise.json")) and os.path.exists(os.path.join(guardada, "analise.json")):
@@ -141,6 +151,7 @@ def um_video(it, pecas, fila, refazer=()):
     """o jeito VÍDEO POR VÍDEO (--bloco 0; o de antes de 01/11 à noite): um `tandera analisar` por vídeo, cada peça carrega o seu modelo"""
     t0 = time.monotonic(); iid = it["id"]
     v, stems, pasta, tr = receber(it, fila)
+    pecas = [p for p in pecas if p not in it.get("_caem", [])]
     cmd = [PY, "-m", "tandera", "analisar", v, "--pecas", ",".join(pecas), "--pasta", pasta, "--perfil", "servidor"]
     for p, c in stems.items(): cmd += ["--stem", f"{p}={c}"]
     if refazer: cmd += ["--refazer", ",".join(refazer)]
@@ -187,7 +198,8 @@ def preparar_bloco(bloco, fila, pecas_de, refazer, juntos=3):
         t0 = time.monotonic()
         try:
             v, stems, pasta, _ = receber(it, fila)
-            item = {"id": it["id"], "video": v, "pasta": pasta, "pecas": pecas_de(it), "stems": stems or None, "idioma": it.get("idioma"),
+            item = {"id": it["id"], "video": v, "pasta": pasta, "pecas": [p for p in pecas_de(it) if p not in it.get("_caem", [])],
+                    "stems": stems or None, "idioma": it.get("idioma"),
                     "refazer": refazer}
             item["previa"] = LT.preparar(item, "servidor", True, log=log)
             log(f"{it['id']}: preparo pronto em {time.monotonic() - t0:.0f} s ({it['dur'] / 60:.1f} min de vídeo, {it['res']})")

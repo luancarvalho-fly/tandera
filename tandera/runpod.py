@@ -28,6 +28,20 @@ ESTADO = os.path.join(TRABALHO, "estado.json")
 CHECKLIST = os.path.join(base.TANDERA, "checklist", "checklist.json")
 SERV = os.path.join(base.TANDERA, "servidor")
 W = "/workspace/tandera"                           # o disco de rede, montado em /workspace em toda placa
+# DISCO FIXO (07/11): quem tem um disco de rede só com os motores (codigo/ pesos/ do_pc/ wheels/ hf/ do Tandera) põe o endereço dele em
+# ~/.runpod/tandera_disco_fixo.json → {"id": "<id do disco>", "centro": "<data center>", "livre_gb": <o que sobra além dos motores>}.
+# Lote que cabe no que sobra roda NELE: não sobe os pesos, não apaga o disco; no fim só limpa entrada/ analises/ fila/ do lote.
+# Sem o arquivo (ou lote maior, ou sem placa no centro dele) → o jeito de sempre: um disco por lote, apagado no fim.
+# O arquivo é de cada máquina: fica FORA do repositório (é o disco da conta de quem roda).
+def _fixo():
+    try:
+        d = json.load(open(os.path.expanduser(os.path.join("~", ".runpod", "tandera_disco_fixo.json")), encoding="utf-8"))
+        return {"id": d["id"], "centro": d["centro"]}, float(d.get("livre_gb", 30))
+    except Exception:
+        return None, 0.0
+
+
+FIXO, FIXO_LIVRE_GB = _fixo()
 # placas de 24 GB+ (Gemma 12B ~10 GB · Sapiens2 ~5,5 · Ovis ~6; uma peça por vez), da mais em conta pra mais cara; a 1ª com vaga leva
 GPUS = ["NVIDIA RTX PRO 4500 Blackwell", "NVIDIA RTX PRO 4000 Blackwell", "NVIDIA A40",   # (a «Server Edition» não está na lista da API v1: 400)
         "NVIDIA RTX A6000", "NVIDIA RTX A5000", "NVIDIA GeForce RTX 3090", "NVIDIA GeForce RTX 4090", "NVIDIA L40S"]
@@ -138,6 +152,19 @@ def ligar_primeira(nome, gb, gpus):
     raise SystemExit("nenhum centro com disco + placa agora (tentar de novo em alguns minutos)")
 
 
+def ligar_no_fixo(nome, gpus):
+    """a 1ª placa no disco fixo (só dá no centro dele, EU-RO-1). Sem vaga em nenhuma placa da lista = None (o lote vai pro jeito antigo)"""
+    for gpu in gpus:
+        try:
+            p = _pod(nome + "-1", FIXO["id"], FIXO["centro"], [gpu])
+        except RuntimeError as e:
+            log(f"{FIXO['centro']} (disco fixo): sem {gpu} ({str(e)[:100]})"); continue
+        _estado(volume=FIXO["id"], centro=FIXO["centro"], pods=[p["id"]], gpu=gpu, fixo=True)
+        log(f"{FIXO['centro']}: disco FIXO + placa {p.get('id')} {gpu} ({p.get('costPerHr')} US$/h)")
+        return FIXO["id"], FIXO["centro"], p, gpu
+    return None
+
+
 def ligar_mais(nome, volume, centro, gpus, n):
     ids = []
     for k in range(n):
@@ -167,14 +194,16 @@ def desligar_tudo():
     for pid in e.get("pods") or []:
         try: api("DELETE", f"/pods/{pid}"); log(f"placa {pid} apagada")
         except RuntimeError as x: log(f"placa {pid}: {str(x)[:120]}")
-    if e.get("volume"):
+    if e.get("volume") and (e.get("fixo") or (FIXO and e.get("volume") == FIXO["id"])):
+        log(f"disco {e['volume']} é o FIXO: fica (só as placas saem)")
+    elif e.get("volume"):
         for _ in range(12):                                # o disco só apaga depois que nenhuma placa o usa
             try:
                 api("DELETE", f"/networkvolumes/{e['volume']}"); log(f"disco {e['volume']} apagado"); break
             except RuntimeError as x:
                 if "404" in str(x): break
                 time.sleep(10)
-    _estado(pods=[], volume=None, desligado=time.strftime("%Y-%m-%d %H:%M:%S"))
+    _estado(pods=[], volume=None, fixo=False, desligado=time.strftime("%Y-%m-%d %H:%M:%S"))
 
 
 # ------------------------------------------------------------------------------------------------ SSH
@@ -312,12 +341,22 @@ def rodar(lote, pasta, placas=1, gpus=GPUS, manter=False, para=None, drive=""):
     R = resumo(lote)
     gb = int(max(150, R["sobe_gb"] * 1.3 + 130))            # modelos guardados (~70 GB) + o que sobe + folga
     _estado(lote=nome, pasta=pasta, comecou=time.strftime("%Y-%m-%d %H:%M:%S"))
-    alvos = {}
+    alvos = {}; trazido = False
+    # cabe no disco fixo? (vídeos que sobem + ~20 MB de análise por item + folga)
+    precisa = R["sobe_gb"] + 0.02 * R["videos"] + 3
+    no_fixo = bool(FIXO) and precisa <= FIXO_LIVRE_GB and not os.environ.get("TANDERA_SEM_FIXO")
+    log(f"o lote precisa de ~{precisa:.0f} GB no disco: " + ("cabe no disco FIXO" if no_fixo else
+        (f"não cabe no fixo (livre {FIXO_LIVRE_GB:.0f} GB) → disco do lote" if FIXO else "sem disco fixo configurado → disco do lote")))
+    pesos = [] if no_fixo else ["--pesos"]                  # no fixo os pesos já moram lá
     try:
         if drive:   # 07/11: código + pesos + análises sobem pro Drive num pacote ANTES da placa ligar (a placa não espera o PC)
             log("montando o pacote (código, pesos, análises) e subindo pro Drive, com a placa ainda desligada…")
-            _py("enviar.py", "--so-pacote", "--codigo", "--pesos", "--lote", lj, log_arq=os.path.join(pasta, "pacote.log"))
-        vol, centro, p1, gpu1 = ligar_primeira("tandera-" + nome, gb, gpus)
+            _py("enviar.py", "--so-pacote", "--codigo", *pesos, "--lote", lj, log_arq=os.path.join(pasta, "pacote.log"))
+        r1 = ligar_no_fixo("tandera-" + nome, gpus) if no_fixo else None
+        if no_fixo and not r1:
+            log("nenhuma placa livre no centro do disco fixo agora → disco do lote (com os pesos)"); no_fixo = False; pesos = ["--pesos"]
+            if drive: _py("enviar.py", "--so-pacote", "--codigo", *pesos, "--lote", lj, log_arq=os.path.join(pasta, "pacote.log"))
+        vol, centro, p1, gpu1 = r1 or ligar_primeira("tandera-" + nome, gb, gpus)
         alvos[p1["id"]] = esperar_ssh(p1["id"]); driver_ok(alvos[p1["id"]], p1["id"])
         a1 = alvos[p1["id"]]
         hf = os.path.expanduser(os.path.join("~", ".cache", "huggingface", "token"))
@@ -325,7 +364,7 @@ def rodar(lote, pasta, placas=1, gpus=GPUS, manter=False, para=None, drive=""):
             ssh(a1, f"mkdir -p /workspace/hf"); subprocess.run([_exe("scp"), "-i", SSH_CHAVE, "-P", str(a1[1]), *_OPTS, hf,
                                                                 f"root@{a1[0]}:/workspace/hf/token"], capture_output=True, creationflags=base.SEM_JANELA)
         log(f"subindo código + pesos + lote ({R['sobe_gb']} GB de vídeo, {R['sem_video']} vídeos só com a análise)…")
-        _py("enviar.py", "--ssh", _ssh_arg(a1), "--destino", W, "--codigo", "--pesos", "--lote", lj, *(["--drive", drive] if drive else []),
+        _py("enviar.py", "--ssh", _ssh_arg(a1), "--destino", W, "--codigo", *pesos, "--lote", lj, *(["--drive", drive] if drive else []),
             log_arq=os.path.join(pasta, "enviar.log"))
         preparar(a1, pasta, "1")
         extras = ligar_mais("tandera-" + nome, vol, centro, [gpu1], max(0, placas - 1)) if placas > 1 else []
@@ -351,8 +390,16 @@ def rodar(lote, pasta, placas=1, gpus=GPUS, manter=False, para=None, drive=""):
         log("trazendo o relatório (sem os áudios grandes)…")
         _py("trazer.py", "--ssh", _ssh_arg(a1), "--storage", W, "--sem-audio", *(["--para", para] if para else []),
             log_arq=os.path.join(pasta, "trazer.log"))
-        log("trazido")
+        log("trazido"); trazido = True
     finally:
+        if no_fixo and trazido and not manter and alvos:       # o disco fixo guarda só os motores: o que foi do lote sai
+            try:
+                ssh(next(iter(alvos.values())), f"rm -rf {W}/entrada {W}/analises {W}/fila; df -h /workspace | tail -1", checar=False, timeout=600)
+                log("disco fixo limpo (entrada/, analises/, fila/ do lote); motores ficaram")
+            except Exception as x:
+                log(f"não limpei o disco fixo: {x}")
+        elif no_fixo and not trazido:
+            log("ATENÇÃO: o lote não foi trazido — entrada/ e analises/ ficaram no disco fixo (trazer.py antes de limpar)")
         if manter: log("--manter: placas e disco ficaram LIGADOS (`tandera runpod --desligar`)")
         else: desligar_tudo()
 
