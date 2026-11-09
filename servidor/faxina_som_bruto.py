@@ -22,7 +22,10 @@ def main():
     fazer = "--fazer" in sys.argv
     pastas, inos, tam = [], set(), 0
     for aj in glob.glob(os.path.join(R, "analises", "*", "pecas", "separacao.json")):
-        ent = (json.load(open(aj, encoding="utf-8")) or {}).get("entregue") or {}
+        try:
+            ent = (json.load(open(aj, encoding="utf-8")) or {}).get("entregue") or {}
+        except ValueError:                                   # 09/11: separacao.json vazio (REVF_C0024) — não mexe, só avisa
+            print(f"  pulei (separacao.json ilegível): {aj}"); continue
         if not eh_som_proprio(ent): continue
         pasta = os.path.dirname(os.path.dirname(aj)); nome = os.path.basename(pasta)
         sp = os.path.join(R, "trabalho", "som-proprio", nome)

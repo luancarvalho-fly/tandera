@@ -228,6 +228,8 @@ def rodar_bloco(itens, placa=True, perfil=None, log=base.log, trabalho=None, cpu
         with v["trava"]:
             v["A"].d["rodadas"].append(r); v["A"].gravar()
         escrever_resumo(v["A"])
+        from .pecas.separacao import soltar_sons
+        soltar_sons(v["A"], log)                       # 09/11: o som do bruto e o som48k não ficam no C depois da análise (refazem iguais)
         log(f"pronto {v['nome']}: rodou {len(r['rodou'])}, guardadas {len(r['guardada'])}, falhou {len(r['falhou'])}, pulou {len(r['pulou'])} → {v['A'].pasta}")
         out["videos"][v["nome"]] = {"pasta": v["A"].pasta, "rodou": {p: x.get("s") for p, x in r["rodou"].items()}, "falhou": r["falhou"],
                                     "pulou": r["pulou"], "guardada": r["guardada"]}

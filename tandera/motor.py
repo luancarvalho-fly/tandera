@@ -69,6 +69,8 @@ def rodar(video, pecas=None, perfil=None, refazer=(), placa=True, idioma=None, p
     rodada["s"] = round(time.monotonic() - T0, 1)
     A.d["rodadas"].append(rodada); A.gravar()
     escrever_resumo(A)
+    from .pecas.separacao import soltar_sons
+    soltar_sons(A, log)                                 # 09/11: o som do bruto e o som48k não ficam no C depois da análise (refazem iguais)
     log(f"pronto em {rodada['s']:.0f} s · rodou {len(rodada['rodou'])}, guardadas {len(rodada['guardada'])}, falhou {len(rodada['falhou'])}, "
         f"pulou {len(rodada['pulou'])} → {A.pasta}")
     return A

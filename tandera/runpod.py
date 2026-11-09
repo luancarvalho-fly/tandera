@@ -375,7 +375,8 @@ def rodar(lote, pasta, placas=1, gpus=GPUS, manter=False, para=None, drive=""):
                 log(f"placa extra {pid} fora: {e}"); api("DELETE", f"/pods/{pid}"); alvos.pop(pid, None)
         for pid, a in alvos.items():
             ssh(a, f"source /root/ativar_tandera.sh && cd /root && nohup python /root/TANDERA/servidor/rodar_lote.py "
-                   f"--lote {W}/lotes/{nome}.json > /root/rodar_lote.log 2>&1 &")
+                   f"--lote {W}/lotes/{nome}.json > /root/rodar_lote.log 2>&1 < /dev/null &", checar=False, timeout=120)
+            # 07/11: sem o «< /dev/null» o ssh ficava preso até o lote ACABAR (81 min calado, sem vigiar a fila): agora solta na hora
         log(f"rodando em {len(alvos)} placa(s)…")
         while True:
             time.sleep(90)
