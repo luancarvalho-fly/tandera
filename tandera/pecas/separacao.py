@@ -2,7 +2,7 @@
 """SEPARAÇÃO: voz (BS-Roformer ep317, na placa, ambiente .venv-sep da REGUA) → o resto vira música × efeitos (BandIt Plus DnR, ambiente
 do separador-cinema). Cada parte é gravada ao lado e trocada no fim (processo morto no meio não deixa wav pela metade; rodar de novo
 pula a parte que terminou). Sai (pecas\\separacao\\): mix_48k · voz_48k · resto_48k (tudo menos a voz) · musica_48k · efeitos_48k."""
-import os, shutil, subprocess
+import glob, os, shutil, subprocess
 
 from .. import base
 
@@ -272,6 +272,33 @@ def som_proprio(A):
     ent = (A["separacao"].get("entregue") or {}) if A.tem("separacao") else {}
     if not ent or not all("som-proprio" in str(v).replace("\\", "/") for v in ent.values()): return None
     return os.path.join(base.TANDERA, "trabalho", "som-proprio", os.path.basename(A.pasta), "mix48k.wav")
+
+
+def soltar_sons(A, log=None):
+    """09/11 (o C: chegou a 200 MB; ele: «Pode, faz 1 a 4»): no FIM da análise de cada vídeo, apaga os dois sons que o motor refaz IGUAL
+    sozinho — o som do bruto (trabalho/som-proprio/<pasta> + os atalhos pecas/separacao/entregue-*) e o som48k do preparo. Causa: a fila
+    da noite (01h, 07 e 08/11) passou de novo por ~140 vídeos do bruto, recriou os dois sons de cada um (stems_da / preparo) e nada
+    apagava depois: 17 GB + 6 GB voltaram 2 dias depois da faxina de 06/11. Quem precisar de novo: stem() / preparo.caminho() refazem
+    (testado bit a bit em 06/11 no C0044). Só apaga se o vídeo está no PC (sem ele não daria pra refazer). Nunca derruba a análise."""
+    try:
+        if not A.video or not os.path.exists(A.video): return
+        livre = 0
+        mix = som_proprio(A)
+        if mix:
+            d = os.path.dirname(mix)
+            if os.path.isdir(d):
+                livre += sum(os.path.getsize(os.path.join(d, f)) for f in os.listdir(d)); shutil.rmtree(d)
+            for e in glob.glob(os.path.join(A.pasta, "pecas", "separacao", "entregue-*")):
+                if os.path.isdir(e) and all(f.lower().endswith(".wav") for f in os.listdir(e)):   # só os atalhos do mesmo som
+                    shutil.rmtree(e)
+        if A.tem("preparo") and A["preparo"].get("trilha_som"):
+            r = (A["preparo"].get("arquivos") or {}).get("som48k")
+            s48 = os.path.join(A.pasta, r.replace("/", os.sep)) if r else None
+            if s48 and os.path.exists(s48):
+                livre += os.path.getsize(s48); os.remove(s48)
+        if livre and log: log(f"  sons refazíveis soltos ({os.path.basename(A.video)}): {livre / 1e9:.2f} GB de volta no disco")
+    except Exception as e:
+        if log: log(f"  (não soltei os sons de {os.path.basename(A.video or '')}: {type(e).__name__}: {str(e)[:200]})")
 
 
 def _refazer_som_proprio(A, p):

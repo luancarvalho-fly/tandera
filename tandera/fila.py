@@ -219,6 +219,10 @@ def rodar(itens, nome, ate=None, bloco=4, completar=False, com=()):
                         i["_nuvem"] = any(p in todas for p in DEPOIS_DA_NUVEM)      # o diário vai pra linha da nuvem depois do bloco
                     if not pecas:                                                # só falta diário/busca: nada na placa agora
                         if "_nuvem" in i: nuvem.por(i["arquivo"], i.pop("_nuvem"))
+                        if st and pista == "bruto":                              # 09/11: o stems_da acabou de refazer o som do bruto à toa
+                            from .armazem import Analise
+                            from .pecas.separacao import soltar_sons
+                            soltar_sons(Analise(os.path.abspath(i["arquivo"])), log)
                         E.marca(i["arquivo"], estado="feito", nota="diário na linha da nuvem")
                         continue
                     its.append({"video": i["arquivo"], "pecas": pecas, "stems": st, "id": os.path.basename(i["arquivo"]),
