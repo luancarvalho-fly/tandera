@@ -112,6 +112,35 @@ def ffprobe(v, *args):
     return subprocess.run(["ffprobe", "-v", "error", *args, v], capture_output=True, text=True, creationflags=SEM_JANELA).stdout.strip()
 
 
+_CODECS_QUE_ABRE = None
+
+
+def abre_codec(codec):
+    """o ffmpeg desta máquina DECODIFICA este codec? (lista do «ffmpeg -codecs», lida uma vez; se não der pra ler, não barra)"""
+    global _CODECS_QUE_ABRE
+    if _CODECS_QUE_ABRE is None:
+        try:
+            out = subprocess.run(["ffmpeg", "-hide_banner", "-codecs"], capture_output=True, text=True, timeout=30, creationflags=SEM_JANELA).stdout
+            _CODECS_QUE_ABRE = {l.split()[1] for l in out.splitlines() if len(l.split()) > 1 and len(l.split()[0]) == 6 and l.split()[0][0] == "D"}
+        except Exception:
+            _CODECS_QUE_ABRE = set()
+    return not _CODECS_QUE_ABRE or codec in _CODECS_QUE_ABRE
+
+
+def trilha_som(v):
+    """«0:N» da 1ª trilha de áudio que o ffmpeg ABRE (None = sem som). 10/11: nunca «-map 0:a:0» — no iPhone novo a 1ª trilha às vezes
+    é o áudio espacial da Apple («apple_apac», sem decodificador) e o ffmpeg morre (bruto novo de um cliente, do iCloud)."""
+    try:
+        j = json.loads(ffprobe(v, "-select_streams", "a", "-show_entries", "stream=index,codec_name", "-of", "json") or "{}")
+    except ValueError:
+        return None
+    for s in j.get("streams") or []:
+        c = s.get("codec_name")
+        if c not in (None, "", "none", "unknown") and abre_codec(c):
+            return f"0:{s['index']}"
+    return None
+
+
 def salvar_json(arq, v):
     """grava ao lado e troca no fim: processo morto no meio não deixa JSON pela metade"""
     import numpy as np
@@ -132,7 +161,9 @@ def salvar_json(arq, v):
 def ler_audio(caminho, sr=16000, mono=True, ini=None, fim=None):
     """qualquer arquivo → float32 pelo ffmpeg (o leitor do faster-whisper quebra com o pacote av novo)"""
     import numpy as np
+    t_som = trilha_som(caminho)   # 10/11: sem dizer a trilha o ffmpeg pega a de mais canais = o APAC do iPhone (sem decodificador)
     cmd = ["ffmpeg", "-nostdin", "-v", "error"] + (["-ss", f"{ini:.4f}"] if ini else []) + ["-i", caminho] + \
+          (["-map", t_som] if t_som else []) + \
           (["-t", f"{fim - (ini or 0):.4f}"] if fim else []) + ["-vn", "-ac", "1" if mono else "2", "-ar", str(sr), "-f", "f32le", "-"]
     r = subprocess.run(cmd, capture_output=True, creationflags=SEM_JANELA)
     return np.frombuffer(r.stdout, np.float32).copy()

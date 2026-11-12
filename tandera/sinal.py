@@ -16,7 +16,8 @@ SR = 44100
 
 
 def le_audio(caminho, sr=SR):
-    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", caminho, "-ac", "1", "-ar", str(sr), "-f", "f32le", "-"], capture_output=True, check=True,
+    t = __import__("tandera.base", fromlist=["base"]).trilha_som(caminho)   # 10/11: a trilha que o ffmpeg abre (o APAC do iPhone vem na frente)
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", caminho, *(["-map", t] if t else []), "-ac", "1", "-ar", str(sr), "-f", "f32le", "-"], capture_output=True, check=True,
                          creationflags=0x08000000 if os.name == "nt" else 0).stdout
     return np.frombuffer(raw, np.float32).copy()
 
