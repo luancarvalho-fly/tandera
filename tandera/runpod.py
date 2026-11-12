@@ -374,8 +374,16 @@ def rodar(lote, pasta, placas=1, gpus=GPUS, manter=False, para=None, drive=""):
             except RuntimeError as e:
                 log(f"placa extra {pid} fora: {e}"); api("DELETE", f"/pods/{pid}"); alvos.pop(pid, None)
         for pid, a in alvos.items():
-            ssh(a, f"source /root/ativar_tandera.sh && cd /root && nohup python /root/TANDERA/servidor/rodar_lote.py "
-                   f"--lote {W}/lotes/{nome}.json > /root/rodar_lote.log 2>&1 < /dev/null &", checar=False, timeout=120)
+            # 10/11: o «source ativar_tandera.sh» rodava DIRETO na conexão e deixava processo preso nela → o ssh estourava 120 s, o
+            # tandera runpod caía no erro e o «finally» APAGAVA a placa com a fila já rodando (lote do iCloud de um cliente). Agora tudo vai
+            # dentro de um bash solto (igual ao preparar) e o tempo esgotado só confere se a fila subiu.
+            try:
+                ssh(a, f"nohup bash -c 'source /root/ativar_tandera.sh && cd /root && python /root/TANDERA/servidor/rodar_lote.py "
+                       f"--lote {W}/lotes/{nome}.json > /root/rodar_lote.log 2>&1' > /dev/null 2>&1 < /dev/null &", checar=False, timeout=120)
+            except subprocess.TimeoutExpired:
+                log(f"placa {pid}: o ssh que abre a fila não soltou em 120 s; conferindo se a fila subiu…")
+            if "VIVO" not in ssh(a, "pgrep -f rodar_lote.py >/dev/null && echo VIVO || echo PAROU", checar=False, timeout=60).stdout:
+                raise RuntimeError(f"a fila não subiu na placa {pid} (ver /root/rodar_lote.log)")
             # 07/11: sem o «< /dev/null» o ssh ficava preso até o lote ACABAR (81 min calado, sem vigiar a fila): agora solta na hora
         log(f"rodando em {len(alvos)} placa(s)…")
         while True:

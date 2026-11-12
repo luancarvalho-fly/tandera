@@ -127,10 +127,12 @@ def receber(it, fila):
     # vai ocupar um espaço do crl»): no BRUTO a «separação» é o PRÓPRIO som do vídeo (pistas.stems_da, a mesma regra das filas do PC
     # desde 06/11) — custo zero, a fala transcreve o som inteiro. O caminho do RunPod não chamava a regra: o lote rodou BS-Roformer +
     # BandIt em tudo (114 GB de wav, disco cheio, falhas). Vídeo sem som: sem stems e sem as peças de som (fala, som).
+    # 12/11 (ele: «separação de áudio nesses casos é coisa inútil... diria q só o plexus, e mesmo assim só quando eu for editar»): vale pra
+    # QUALQUER pista — sem a «separacao» entre as peças pedidas, o próprio som vale como separação (pistas.stems_da com as peças).
     it["_caem"] = []
-    if not stems and it.get("pista") == "bruto" and not it.get("sem_video"):
+    if not stems and it.get("pista") not in (None, "kakashi") and not it.get("sem_video"):
         from tandera.pistas import stems_da
-        st, caem = stems_da("bruto", v, log)
+        st, caem = stems_da(it["pista"], v, log, it.get("pecas") or [])
         if st: stems = st
         it["_caem"] = caem
     pasta = os.path.join(ANALISES, it["pasta"])

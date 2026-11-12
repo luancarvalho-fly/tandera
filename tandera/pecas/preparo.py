@@ -21,6 +21,21 @@ from .. import base
 FPS_MINI = 2
 _NV = None
 import threading  # noqa: E402
+
+_DECODERS = None
+
+
+def _decodifica(codec):
+    """o ffmpeg desta máquina tem decodificador de áudio pra este codec? (lista lida uma vez; se não der pra ler, não barra)"""
+    global _DECODERS
+    if _DECODERS is None:
+        try:
+            # «-codecs»: 1ª letra D = o ffmpeg decodifica (o nome é o do codec, igual ao do ffprobe; o do decoder às vezes é outro)
+            out = subprocess.run(["ffmpeg", "-hide_banner", "-codecs"], capture_output=True, text=True, timeout=30).stdout
+            _DECODERS = {l.split()[1] for l in out.splitlines() if len(l.split()) > 1 and len(l.split()[0]) == 6 and l.split()[0][0] == "D"}
+        except Exception:
+            _DECODERS = set()
+    return not _DECODERS or codec in _DECODERS
 _TRAVA = threading.Lock()
 
 
@@ -199,7 +214,9 @@ def rodar(A, ctx):
     tags = (fmt.get("format") or {}).get("tags") or {}
     tem_imagem = any(s.get("codec_type") == "video" for s in fmt["streams"])
     trilhas = [s for s in fmt["streams"] if s.get("codec_type") == "audio"]
-    boa = next((s for s in trilhas if s.get("codec_name") not in (None, "", "none", "unknown")), None)
+    # 10/11: o ffprobe novo dá nome ao áudio espacial da Apple («apple_apac») mas o ffmpeg não tem decodificador → pula toda trilha
+    # que o ffmpeg não abre (bruto novo de um cliente, do iCloud: em parte dos .MOV o APAC vem ANTES do AAC e o preparo morria)
+    boa = next((s for s in trilhas if s.get("codec_name") not in (None, "", "none", "unknown") and _decodifica(s.get("codec_name"))), None)
     som = f"0:{boa['index']}" if boa else None
     folga = 0.0
     if boa and boa.get("codec_name") == "aac" and not int(boa.get("initial_padding") or 0):

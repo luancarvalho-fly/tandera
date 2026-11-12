@@ -59,7 +59,8 @@ def cortar(video, pasta, dur, threads=2):
         d = min(TRECHO_S, dur - t); p = os.path.join(pasta, f"{len(out):05d}.mp4")
         cmd = ["ffmpeg", "-nostdin", "-v", "error", "-y", "-threads", str(threads), "-ss", f"{t:.3f}", "-t", f"{d:.3f}", "-i", video,
                "-threads", str(threads), "-vf", "scale='if(gt(iw,ih),448,-2)':'if(gt(iw,ih),-2,448)'", "-r", "10", "-c:v", "libx264",
-               "-preset", "ultrafast", "-crf", "28", "-c:a", "aac", "-ac", "1", "-ar", "16000", p]
+               "-preset", "ultrafast", "-crf", "28", "-c:a", "aac", "-ac", "1", "-ar", "16000",
+               "-map", "0:v:0", *(["-map", base.trilha_som(video)] if base.trilha_som(video) else []), p]   # 10/11: nunca a trilha de mais canais (APAC do iPhone)
         # 07/11: um pedaço CORROMPIDO do vídeo (2026_C0024, h264 com erro) derrubava o Ovis do vídeo inteiro → tenta de novo
         # descartando o quadro quebrado; se ainda falhar, pula SÓ esse trecho de 4 s (o resto do vídeo fica com retrato)
         try:

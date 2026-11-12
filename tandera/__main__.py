@@ -98,8 +98,9 @@ def main():
             from .janelas import exemplos
             exemplos(x.video, not x.sem_placa, x.idioma or PISTAS[x.pista].get("idioma")); return
         if not x.pecas:
-            st, caem = stems_da(x.pista, x.video, base.log)
-            x.pecas = ",".join(p for p in pecas_da(x.pista, x.video, x.bateria) if p not in caem)
+            todas = pecas_da(x.pista, x.video, x.bateria)
+            st, caem = stems_da(x.pista, x.video, base.log, todas)          # 12/11: sem a bateria som = o próprio som
+            x.pecas = ",".join(p for p in todas if p not in caem)
             if st and not x.stem: x.stem = [f"{k}={v}" for k, v in st.items()]
         x.idioma = x.idioma or PISTAS[x.pista].get("idioma")
     if x.cmd == "exemplos":

@@ -263,6 +263,11 @@ def stem(A, nome):
         if r.replace("\\", "/").endswith("pecas/preparo/som48k.wav"):      # o «mix» é o som48k do preparo: o preparo refaz
             from . import preparo
             return preparo.caminho(A, "som48k")
+        if not som_proprio(A):
+            # 12/11: os stems da separação de verdade foram APAGADOS (ele: «pode apagar esses 40 GB de stems»; 40 GB em 242 análises).
+            # A ficha (separacao.json) ficou; quem ainda precisar de um stem lê o som do próprio vídeo — o mesmo que o bruto usa.
+            from . import preparo
+            return preparo.caminho(A, "som48k")
         _refazer_som_proprio(A, p)
     return p
 
@@ -307,7 +312,7 @@ def _refazer_som_proprio(A, p):
     if not os.path.exists(mix):
         if not os.path.exists(A.video): raise SystemExit(f"o som do bruto saiu da análise e o vídeo não está aqui pra refazer: {A.video}")
         os.makedirs(os.path.dirname(mix), exist_ok=True)
-        base.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", A.video, "-map", "0:a:0", "-ac", "2", "-ar", "48000", "-c:a", "pcm_f32le",
+        base.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", A.video, "-map", (A["preparo"].get("trilha_som") if A.tem("preparo") else None) or base.trilha_som(A.video) or "0:a:0", "-ac", "2", "-ar", "48000", "-c:a", "pcm_f32le",
                   "-bitexact", mix + ".tmp.wav"])
         mt = os.stat(A.video).st_mtime
         os.replace(mix + ".tmp.wav", mix); os.utime(mix, (mt, mt))

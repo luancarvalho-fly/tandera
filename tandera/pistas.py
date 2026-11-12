@@ -66,6 +66,14 @@ BATERIAS = {
     "profunda": ["corpo", "camera", "boca", "olho"],
 }
 
+# SÓ O RECONHECIMENTO POR PADRÃO (12/11 ~00h, ele, depois de ver a fila separando o áudio das aulas do curso: «separação de áudio nesses
+# casos é coisa inútil... só criando mais arquivo pra lotar a minha memória, são raros os casos de separar a voz cara, diria q só o plexus,
+# e mesmo assim só quando eu for editar o vídeo» · «você sempre vai rodar com o Tandera só o necessário, tá ligado? O de reconhecimento.
+# Essa parte mais profunda, você só vai rodar se eu solicitar»). Sem --bateria (fila, checklist, analisar, RunPod) = só o reconhecimento;
+# som (separação/música/batida/rótulos/efeitos) e profunda (movimento/câmera/boca/olho) só com --bateria som|profunda (ou --pecas) pedido
+# por ele. A separação que a fala/entonação/sinal pedem vira o PRÓPRIO som do vídeo (custa 0, como o bruto já fazia desde 06/11).
+PADRAO = ["reconhecimento"]
+
 for _n, _p in PISTAS.items():
     assert _p.get("exemplos") or "ovis" in (_p.get("pecas") or padrao()), f"pista {_n} sem o Ovis (a fundação da busca)"
 _todas = [p for b in BATERIAS.values() for p in b]
@@ -85,20 +93,36 @@ def bateria_de(peca):
 
 
 def pecas_da(pista, arquivo=None, baterias=None):
-    """as peças que a pista liga pra este arquivo (foto liga só as de imagem); None = as padrão do manifesto.
+    """as peças que a pista liga pra este arquivo (foto liga só as de imagem), SÓ das baterias pedidas.
     baterias (06/11) = só as peças dessas baterias; «profunda» LIGA as peças caras (movimento, câmera, boca, olho) mesmo que a pista
-    não as tenha por padrão — é a fase 2, só no material escolhido"""
-    if baterias:
-        if isinstance(baterias, str): baterias = [b.strip() for b in baterias.split(",") if b.strip()]
-        for b in baterias:
-            if b not in BATERIAS: raise SystemExit(f"bateria desconhecida: {b} (tem: {', '.join(BATERIAS)})")
-        base_ = pecas_da(pista, arquivo)
-        if "profunda" in baterias and not (arquivo and eh_foto(arquivo)):
-            # a pista diz quais peças fundas fazem sentido nela (sessão do Kakashi = tela: só o olho); sem dizer = as quatro
-            base_ = base_ + [p for p in PISTAS[pista].get("profunda", BATERIAS["profunda"]) if p not in base_]
-        quer = {p for b in baterias for p in BATERIAS[b]}
-        from .manifesto import ORDEM
-        return [p for p in ORDEM if p in base_ and p in quer]
+    não as tenha por padrão — é a fase 2, só no material escolhido. Sem baterias = PADRAO (12/11: só o reconhecimento); «todas» = a
+    pista inteira como era antes de 12/11 (só a pedido dele).
+    Peça que depende de outra fora das baterias pedidas cai junto (ex.: o sinal lê os rótulos, que são da bateria som) — a separação não
+    conta: sem a bateria som ela é o próprio som do vídeo (stems_da), custo 0."""
+    if isinstance(baterias, str): baterias = [b.strip() for b in baterias.split(",") if b.strip()]
+    if baterias == ["todas"]: return _pista_inteira(pista, arquivo)
+    baterias = baterias or PADRAO
+    for b in baterias:
+        if b not in BATERIAS: raise SystemExit(f"bateria desconhecida: {b} (tem: {', '.join(BATERIAS)}, ou «todas»)")
+    base_ = _pista_inteira(pista, arquivo)
+    if "profunda" in baterias and not (arquivo and eh_foto(arquivo)):
+        # a pista diz quais peças fundas fazem sentido nela (sessão do Kakashi = tela: só o olho); sem dizer = as quatro
+        base_ = base_ + [p for p in PISTAS[pista].get("profunda", BATERIAS["profunda"]) if p not in base_]
+    quer = {p for b in baterias for p in BATERIAS[b]}
+    from .manifesto import ORDEM
+    fica = [p for p in ORDEM if p in base_ and p in quer]
+    pode = quer | set(BATERIAS["reconhecimento"])        # dependência do reconhecimento (preparo, cortes, fala) é barata: entra sempre
+    mudou = True
+    while mudou:
+        mudou = False
+        for p in list(fica):
+            if any(d != "separacao" and d not in pode for d in PECAS[p]["depende"]):
+                fica.remove(p); mudou = True
+    return fica
+
+
+def _pista_inteira(pista, arquivo=None):
+    """todas as peças da pista (o que ela ligava antes de 12/11); None = as padrão do manifesto"""
     if pista not in PISTAS: raise SystemExit(f"pista desconhecida: {pista} (tem: {', '.join(PISTAS)})")
     P = PISTAS[pista]
     if arquivo and eh_foto(arquivo):
@@ -107,17 +131,21 @@ def pecas_da(pista, arquivo=None, baterias=None):
     return list(P["pecas"]) if P.get("pecas") else padrao()
 
 
-def stems_da(pista, arquivo, log=None):
+def stems_da(pista, arquivo, log=None, pecas=None):
     """stems que a pista entrega prontos pra este arquivo → (stems ou None, peças que caem). No bruto a separação é o PRÓPRIO som
     (voz = resto = o som do vídeo: custa 0; a fala transcreve o som inteiro, como no catálogo) — o mesmo jeito da 1ª passada das janelas
     (janelas.py): wav 48k tirado do vídeo, com a data do vídeo (cortar de novo dá a mesma assinatura). Vídeo que já tem separação de
-    verdade fica com ela. Vídeo sem som: sem stems e sem as peças de som (fala, som)."""
+    verdade fica com ela. Vídeo sem som: sem stems e sem as peças de som (fala, som).
+    12/11 (ele: «separação de áudio nesses casos é coisa inútil... diria q só o plexus, e mesmo assim só quando eu for editar»): em
+    QUALQUER pista o próprio som vale como separação quando `pecas` (as que vão rodar) não pede a «separacao»; separação de verdade
+    (BS-Roformer + BandIt) só quando ela vem pedida (--bateria som / --pecas separacao). pecas=None = o jeito antigo (só o bruto)."""
     if pista == "kakashi" and arquivo:
         # a sessão do Kakashi já vem separada: microfone (fala.wav) e som do PC (pc.wav) ao lado da tela.mp4
         d = os.path.dirname(os.path.abspath(arquivo)); st = PISTAS["kakashi"]["stems_kakashi"]
         achou = {k: os.path.join(d, v) for k, v in st.items() if os.path.exists(os.path.join(d, v))}
         return (achou, []) if "voz" in achou and "resto" in achou else (None, ["fala", "rotulos"])
-    if pista != "bruto" or not arquivo or eh_foto(arquivo): return None, []
+    separar_de_verdade = pista != "bruto" and (pecas is None or "separacao" in pecas)
+    if separar_de_verdade or not arquivo or eh_foto(arquivo): return None, []
     from . import base
     from .armazem import Analise
     video = os.path.abspath(arquivo)
@@ -130,7 +158,7 @@ def stems_da(pista, arquivo, log=None):
         if not (r or "").strip():
             if log: log(f"{os.path.basename(video)}: sem trilha de som — fala e som ficam de fora")
             return None, ["fala", "som"]
-        base.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", video, "-map", "0:a:0", "-ac", "2", "-ar", "48000", "-c:a", "pcm_f32le",
+        base.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", video, "-map", base.trilha_som(video) or "0:a:0", "-ac", "2", "-ar", "48000", "-c:a", "pcm_f32le",
                   "-bitexact", mix + ".tmp.wav"])
         mt = os.stat(video).st_mtime
         os.replace(mix + ".tmp.wav", mix); os.utime(mix, (mt, mt))

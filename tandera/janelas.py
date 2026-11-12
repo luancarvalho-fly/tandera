@@ -91,7 +91,7 @@ def cortar(video, ini, fim, dst, lado=1080, placa=True):
         W, H = (round(w * lado / h / 2) * 2, lado) if w >= h else (lado, round(h * lado / w / 2) * 2)
     else:
         W, H = w, h
-    som = ["-map", "0:a:0?", "-c:a", "flac", "-ar", "48000"]
+    som = (["-map", base.trilha_som(video), "-c:a", "flac", "-ar", "48000"] if base.trilha_som(video) else [])   # 10/11: nunca a 1ª trilha às cegas (APAC do iPhone)
     cmd0 = ["ffmpeg", "-nostdin", "-v", "error", "-y"]
     # 01/11 23:28 (RunPod som-2): o NVENC daquele ffmpeg pedia driver ≥ 610 e as máquinas tinham 595.91 → o corte caía INTEIRO pro
     # processador (decodificando o 4K AV1 de novo). A placa ABRE e REDUZ (NVDEC + scale_cuda) e o processador só codifica o 1080 (x264
@@ -129,7 +129,7 @@ def exemplos(video, placa=True, idioma=None, so_contar=False, olho=True, log=bas
     if not A.tem("separacao") or str(A.versao("separacao") or "").startswith("entregue-"):
         mix = os.path.join(T, "mix48k.wav")
         if not os.path.exists(mix):
-            base.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", video, "-map", "0:a:0", "-ac", "2", "-ar", "48000", "-c:a", "pcm_f32le",
+            base.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", video, "-map", base.trilha_som(video) or "0:a:0", "-ac", "2", "-ar", "48000", "-c:a", "pcm_f32le",
                       "-bitexact", mix + ".tmp.wav"])
             os.replace(mix + ".tmp.wav", mix); os.utime(mix, (mt, mt))
         stems = {"voz": mix, "resto": mix}
