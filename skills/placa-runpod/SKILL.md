@@ -57,6 +57,8 @@ Custo/tempo no plano: contar a peça **olho** (Gemma lê cada plano; ~38 s por m
 ### O que a placa não baixa, o PC baixa antes
 - O YouTube barra o IP do servidor. Baixar no PC: `yt-dlp --js-runtimes node -N 8 -f "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/bv*[height<=1080]+ba"`
   (sem `player_client`: os clientes android/ios passaram a entregar só 360p, calado). Conferir resolução e duração antes de subir.
+- Instagram: `yt-dlp -f "b/bv*+ba"`. Sem o `-f` ele pode pegar o fluxo DASH de 360×360 e deixar de lado o progressivo de 720×720
+  (que aparece como resolução «unknown»). Conferir com ffprobe também.
 - Vídeo de câmera: subir o ORIGINAL 4K (a placa abre uma vez só).
 
 ## 4. A máquina e o motor
