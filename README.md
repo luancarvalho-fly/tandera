@@ -23,6 +23,16 @@ Ele lê o `CLAUDE.md` deste repositório, roda o **PC check** e escolhe com voc�
 | PC sem placa forte | o leve no seu PC + o pesado numa máquina alugada por hora no **RunPod** (`RUNPOD.md`) |
 | Mac | em porte (`MAC.md`): o leve no processador do Mac, o pesado no RunPod |
 
+## Analisar vídeo: a skill `analise-de-video` (o manual de uso)
+O Tandera mede; a skill `skills/analise-de-video/SKILL.md` (instale em `~/.claude/skills/analise-de-video/`, ou peça pro seu Claude)
+ensina a usar: os usos (busca e decupagem de bruto, bruto × editado, referência de som, conferir geração de IA, gameplay, troca de voz,
+vídeos de referência → skill), qual pista ligar, como conferir a saída de cada peça e como concluir sem inventar.
+- **Pista = o TIPO de vídeo** (`python -m tandera pistas`): `bruto` (material de câmera), `editado` (vídeo pronto), `trailer` (referência
+  de som), `tutorial` (o pesado só nos exemplos), `kakashi` e as do IP de animação da Fly. Peça desligada não gasta placa.
+- **Bateria = a FASE:** `reconhecimento` (barata, o padrão) → `som` (separação, música, batida, rótulos: só onde tem mixagem, nunca em
+  bruto de câmera) → `profunda` (câmera, corpo, boca, olho: ~10× mais cara, só no material escolhido e quando pedirem).
+- **O Ovis** (retrato vídeo+som a cada 4 s) entra em todo lote: é o que deixa o material inteiro buscável por frase.
+
 ## Gemma × Gemini
 **A gente usa o Gemma 4 (local, de graça) pra substituir o Gemini** na hora de descrever o vídeo. **Mas você pode usar o Gemini pelos
 créditos diários grátis** da sua própria chave do Google AI Studio: ele faz o diário do vídeo inteiro (vê e ouve) e liga a busca por
@@ -37,6 +47,7 @@ frase. Explicado em `GEMMA-E-GEMINI.md`.
 | `RUNPOD.md` | rodar numa máquina alugada (quem não tem PC forte) |
 | `GEMMA-E-GEMINI.md` | quem descreve o vídeo, e como ligar o Gemini grátis |
 | `MAC.md` | o porte pro Mac, peça por peça |
+| `skills/` | as skills do Claude Code: `analise-de-video` (como analisar com o Tandera) e `placa-runpod` (placa alugada) |
 | `referencia/` | os relatórios: o motor único, o Linux igual ao PC, o lote por peça, o piloto no RunPod |
 | `exemplo/` | um vídeo de 12 s de resultado conhecido, pra provar a instalação |
 

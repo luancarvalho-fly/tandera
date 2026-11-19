@@ -45,6 +45,14 @@ PISTAS = {
     "trailer": dict(
         o_que="trailer/vídeo de referência de som",
         pecas=["cortes", "fala", "separacao", "musica", "batida", "rotulos", "sinal", "efeitos", "ovis"], idioma="en"),
+    "gameplay": dict(
+        o_que="GAMEPLAY gravado (jogo + webcam + microfone) pra montagem automática (19/11, ele: «pra editar o vídeo do Gui precisaria "
+              "rodar uma análise do Tandera também… não vai precisar separar som, voz, efeito sonoro… a análise tem que ser direcionada "
+              "pra isso»): fala no ms (as emendas do corte), cortes (troca de tela do jogo), texto na tela (menu, «você morreu», "
+              "carregamento), Ovis (busca e movimento). As pausas pelo volume do microfone a skill de montagem mede (o «sinal» depende dos "
+              "rótulos, que são da bateria som). Sem separação/música/batida/rótulos (o som próprio vale como separação, custa 0); o "
+              "olho só na profunda (o mais caro)",
+        pecas=["preparo", "cortes", "fala", "texto", "ovis"], profunda=["olho"], idioma="pt"),
     "kakashi": dict(
         o_que="sessão do Kakashi (tela + microfone + som do PC prontos): sem separação, cortes nem batida",
         pecas=["fala", "texto", "olho", "rotulos", "ovis"], profunda=["olho"], idioma="pt", video="tela.mp4", stems_kakashi={"voz": "fala.wav", "resto": "pc.wav"}),

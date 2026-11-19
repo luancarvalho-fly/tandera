@@ -9,6 +9,7 @@ peça o OK antes de instalar qualquer coisa** (são GBs de modelos; permissão d
 - `MODELOS.md` — cada modelo: fonte oficial, tamanho, licença.
 - `GEMMA-E-GEMINI.md` — quem descreve o vídeo (Gemma local = o padrão; Gemini = opcional, com os créditos diários da chave da pessoa).
 - `RUNPOD.md` — pra quem não tem placa NVIDIA.
+- `skills/analise-de-video/SKILL.md` — a skill do Claude Code que ensina a USAR o Tandera (pista, bateria, conferir a saída, concluir, virar referência em skill). Instale em `~/.claude/skills/analise-de-video/` e leia antes de analisar qualquer vídeo.
 - `skills/placa-runpod/SKILL.md` — a skill do Claude Code pra ligar, encher, vigiar e desligar placa no RunPod (instale em `~/.claude/skills/placa-runpod/` e leia ANTES de ligar qualquer placa).
 
 ## 1. Qual caminho (decida com a pessoa, depois do PC check)
@@ -62,7 +63,7 @@ dessa pasta.
    Tudo IGUAL ou PERTO = instalado certo. Depois rode de novo SEM o `--sem-placa` pra provar a placa.
 
 ## 3. Usar
-`tandera.cmd analisar <vídeo>` (as peças padrão; só roda o que falta ou mudou) · `--pista <nome>` (as receitas prontas:
+`tandera.cmd analisar <vídeo> --pista <tipo>` (SEMPRE com a pista do tipo de vídeo: sem ela roda todas as peças padrão, inclusive as caras; só roda o que falta ou mudou) · `--pista <nome>` (as receitas prontas:
 `tandera.cmd pistas` lista) · `checklist --somar <pasta> --grupo G --pista P` (a lista do que analisar) + `fila --checklist --ate 08:30` (roda a lista em
 blocos, ex. de madrugada, só o que falta) · o resto no `LEIA-ME.md`.
 A análise de cada vídeo fica em `analises\<nome>_<assinatura>\` com um `RESUMO.md` legível.
