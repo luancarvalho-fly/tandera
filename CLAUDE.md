@@ -9,6 +9,7 @@ peça o OK antes de instalar qualquer coisa** (são GBs de modelos; permissão d
 - `MODELOS.md` — cada modelo: fonte oficial, tamanho, licença.
 - `GEMMA-E-GEMINI.md` — quem descreve o vídeo (Gemma local = o padrão; Gemini = opcional, com os créditos diários da chave da pessoa).
 - `RUNPOD.md` — pra quem não tem placa NVIDIA.
+- `skills/placa-runpod/SKILL.md` — a skill do Claude Code pra ligar, encher, vigiar e desligar placa no RunPod (instale em `~/.claude/skills/placa-runpod/` e leia ANTES de ligar qualquer placa).
 
 ## 1. Qual caminho (decida com a pessoa, depois do PC check)
 Rode `py -3 pc_check.py` (Windows; só LÊ o PC) e explique o resultado. Então:

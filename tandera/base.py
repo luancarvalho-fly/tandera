@@ -174,7 +174,9 @@ def quadro(video, f, fps, w=None):
     import cv2, numpy as np
     vf = ["-vf", f"scale={w}:-2"] if w else []
     r = subprocess.run(["ffmpeg", "-v", "error", "-ss", "%.5f" % max(0.0, (f - 0.5) / fps), "-i", video, "-frames:v", "1", *vf,
-                        "-f", "image2pipe", "-vcodec", "png", "-"], capture_output=True, creationflags=SEM_JANELA)
+                        "-f", "image2pipe", "-vcodec", "bmp", "-"], capture_output=True, creationflags=SEM_JANELA)
+    # 19/11: era PNG — dentro do lote na placa o libpng do OpenCV quebrava («bad parameters to zlib») e o quadro voltava vazio;
+    # o olho de 27 vídeos da placa 5 saiu sem imagem e marcado ✓. BMP não passa pelo zlib.
     return cv2.imdecode(np.frombuffer(r.stdout, np.uint8), cv2.IMREAD_COLOR) if r.stdout else None
 
 

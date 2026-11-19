@@ -85,18 +85,32 @@ def rodar(A, ctx):
     for m in base.ollama_carregados():
         if m != MODELO: base.ollama_descarrega(m)
     pasta = A.dir("olho"); out = []
+    # 19/11 ~04h: os quadros e o prompt de cada plano saem primeiro (rápido, processador); as perguntas ao Gemma vão
+    # OLHO_PARALELO por vez (padrão 2) — o Ollama da placa roda com OLLAMA_NUM_PARALLEL=2 e o Gemma usava ~35 % da placa
+    # um plano por vez. Mesma ordem, mesmas imagens, mesmo prompt; só a espera encolhe.
+    tarefas = []
     for n, (a, b) in enumerate(c["planos"], 1):
         ims = []
         for k, f in enumerate(quadros_do_plano(a, b), 1):
             q = base.quadro(A.video, f, fps)
             if q is None: continue
             ims.append(quadro_com_tempo(q, os.path.join(pasta, f"p{n:03d}_{k}_q{f}.jpg"), f"{k} · {base.mmss(f / fps)} · q{f}"))
+        if not ims:   # 19/11: sem quadro o Gemma inventava/recusava e a peça saía ✓ — agora a peça FALHA e o lote mostra
+            raise RuntimeError(f"olho: plano {n} sem nenhum quadro (o ffmpeg/OpenCV não devolveu imagem) — nada de perguntar só com texto")
         ws = [w for w in pal if a / fps <= w["ini"] - folga < b / fps]
         falas = " ".join(f"[{base.mmss(w['ini'] - folga)}] {w['p']}" if i == 0 or w["ini"] - ws[i - 1]["fim"] > 0.4 else w["p"] for i, w in enumerate(ws)) or None
         cab = f"plano {n} de {len(c['planos'])} · de {base.mmss(a / fps)} a {base.mmss(b / fps)} · vídeo de {base.mmss(p['duracao'])}"
-        r = perguntar(prompt_ficha(cab, len(ims), falas), ims, 1600)
-        out.append({"plano": n, "de_q": a, "ate_q": b, "quadros": [os.path.relpath(i, A.pasta).replace("\\", "/") for i in ims], **r})
-        if ctx.log and n % 10 == 0: ctx.log(f"olho: {n}/{len(c['planos'])} planos")
+        tarefas.append((n, a, b, ims, prompt_ficha(cab, len(ims), falas)))
+    from concurrent.futures import ThreadPoolExecutor
+    feitos = [0]
+    def um(t):
+        n, a, b, ims, pr = t
+        r = perguntar(pr, ims, 1600)
+        feitos[0] += 1
+        if ctx.log and feitos[0] % 10 == 0: ctx.log(f"olho: {feitos[0]}/{len(tarefas)} planos")
+        return {"plano": n, "de_q": a, "ate_q": b, "quadros": [os.path.relpath(i, A.pasta).replace("\\", "/") for i in ims], **r}
+    with ThreadPoolExecutor(max(1, int(os.environ.get("OLHO_PARALELO", "2")))) as ex:
+        out = list(ex.map(um, tarefas))
     if not base.SEGURAR:                       # no lote o Gemma fica no Ollama pro próximo vídeo (o lote tira no fim da peça)
         base.ollama_descarrega(MODELO)
     return {"planos": out, "modelo": MODELO}

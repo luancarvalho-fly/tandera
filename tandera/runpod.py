@@ -14,7 +14,7 @@ ORQUESTRA — liga/desliga placa e disco pela API do RunPod e chama o caminho do
   tandera runpod --desligar             desliga as placas e apaga o disco do estado (se algo ficou ligado)
 
 Sempre: a placa e o disco são apagados no fim, até com erro (--manter deixa). Chave: ~/.runpod/chave-api.txt (nunca impressa).
-SSH: ~/.ssh/runpod. Andamento: trabalho\\runpod\\<lote>\\ (estado.json, os logs, o checklist antes/depois)."""
+SSH: ~/.ssh/runpod (ou a variável TANDERA_RUNPOD_SSH). Andamento: trabalho\\runpod\\<lote>\\ (estado.json, os logs, o checklist antes/depois)."""
 import argparse, json, os, shutil, subprocess, sys, time, urllib.error, urllib.request
 
 from . import base
@@ -22,7 +22,7 @@ from .manifesto import PECAS, com_dependencias
 
 API = "https://rest.runpod.io/v1"
 CHAVE = os.path.expanduser(os.path.join("~", ".runpod", "chave-api.txt"))
-SSH_CHAVE = os.path.expanduser(os.path.join("~", ".ssh", "runpod"))
+SSH_CHAVE = os.environ.get("TANDERA_RUNPOD_SSH") or os.path.expanduser(os.path.join("~", ".ssh", "runpod"))
 TRABALHO = os.path.join(base.TANDERA, "trabalho", "runpod")
 ESTADO = os.path.join(TRABALHO, "estado.json")
 CHECKLIST = os.path.join(base.TANDERA, "checklist", "checklist.json")
