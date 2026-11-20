@@ -348,9 +348,12 @@ class Placa:
         if os.name == "nt" and os.path.exists(MEDIDOR) and not os.environ.get("TANDERA_SEM_MEDIDOR"):
             try:
                 py = os.environ.get("TANDERA_PY_MEDIDOR") or "python"
-                r = subprocess.run([py, MEDIDOR, "comecou", self.o_que, "--gpu", "--vram", str(self.vram), "--dura", str(self.dura),
-                                    "--quem", "tandera unico"], capture_output=True, text=True, encoding="utf-8", errors="replace",
-                                   creationflags=SEM_JANELA)
+                # 20/11 (item 3, medido): a trava do MEDIDOR é UM arquivo — o «comecou --gpu» escrevia POR CIMA da trava de outro trabalho
+                # e o «terminou» apagava: o outro ficava sem proteção. Com trava de outro, o aviso entra sem --gpu (não mexe na dele).
+                de_outro = os.path.exists(trava) and "tandera" not in open(trava, encoding="utf-8", errors="replace").read().lower()
+                r = subprocess.run([py, MEDIDOR, "comecou", self.o_que, *([] if de_outro else ["--gpu"]), "--vram", str(self.vram),
+                                    "--dura", str(self.dura), "--quem", "tandera unico"], capture_output=True, text=True, encoding="utf-8",
+                                   errors="replace", creationflags=SEM_JANELA)
                 self.id = (r.stdout.strip().splitlines() or [None])[-1]
             except Exception as e:
                 log("aviso: não consegui avisar no Medidor:", e)

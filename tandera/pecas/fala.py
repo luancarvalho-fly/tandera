@@ -26,6 +26,13 @@ def _whisper(dispositivo):
 
 
 def soltar():
+    """20/11 (otimização, item 3 — medido): o CTranslate2 do faster-whisper NÃO devolve a placa com del + empty_cache (ficavam 2.153 MiB
+    presos até o processo morrer); com unload_model() devolve tudo (sobra 1 MiB). Sem isso o motor quente não poderia soltar o Whisper."""
+    for m in list(_modelos.values()):
+        try:
+            m.model.unload_model()
+        except Exception:
+            pass
     _modelos.clear(); base.liberar_torch()
 
 
@@ -309,9 +316,74 @@ def _limpa(t):
     return [w for w in re.sub(r"[^a-z' ]", " ", t).split() if w]
 
 
-def alinhar(x16, segmentos, dispositivo="cuda"):
+# ---- número falado (20/11, otimização — achado da Fase 1B): o alinhador só conhece letras; «90» virava nada e a palavra sumia da legenda.
+# Agora o número vira o que a pessoa FALA («noventa») só pra o alinhador achar o tempo; a palavra devolvida é a ORIGINAL do Whisper («90»).
+_UN_PT = ("zero um dois três quatro cinco seis sete oito nove dez onze doze treze catorze quinze dezesseis dezessete dezoito "
+          "dezenove").split()
+_DZ_PT = {2: "vinte", 3: "trinta", 4: "quarenta", 5: "cinquenta", 6: "sessenta", 7: "setenta", 8: "oitenta", 9: "noventa"}
+_CE_PT = {1: "cento", 2: "duzentos", 3: "trezentos", 4: "quatrocentos", 5: "quinhentos", 6: "seiscentos", 7: "setecentos",
+          8: "oitocentos", 9: "novecentos"}
+_UN_EN = ("zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen "
+          "nineteen").split()
+_DZ_EN = {2: "twenty", 3: "thirty", 4: "forty", 5: "fifty", 6: "sixty", 7: "seventy", 8: "eighty", 9: "ninety"}
+
+
+def _ate_mil(n, en):
+    if en:
+        c, r = divmod(n, 100); p = [f"{_UN_EN[c]} hundred"] if c else []
+        if r:
+            p.append(_UN_EN[r] if r < 20 else _DZ_EN[r // 10] + (f" {_UN_EN[r % 10]}" if r % 10 else ""))
+        return " ".join(p)
+    if n == 100:
+        return "cem"
+    c, r = divmod(n, 100); p = [_CE_PT[c]] if c else []
+    if r:
+        p.append(_UN_PT[r] if r < 20 else _DZ_PT[r // 10] + (f" e {_UN_PT[r % 10]}" if r % 10 else ""))
+    return " e ".join(p)
+
+
+def extenso(n, idioma="pt"):
+    """inteiro → como se fala («27» → «vinte e sete»; en: «twenty seven»). Só pro alinhador: aproximado basta (o MMS acha o tempo)."""
+    en = str(idioma or "pt").lower().startswith("en")
+    if n < 0:
+        return ("minus " if en else "menos ") + extenso(-n, idioma)
+    if n == 0:
+        return "zero"
+    partes, resto = [], n
+    for valor, um, varios in ((10 ** 9, "billion" if en else "bilhão", "billion" if en else "bilhões"),
+                              (10 ** 6, "million" if en else "milhão", "million" if en else "milhões"),
+                              (1000, "thousand" if en else "mil", "thousand" if en else "mil")):
+        q, resto = divmod(resto, valor)
+        if q:
+            partes.append(um if (q == 1 and valor == 1000 and not en) else f"{extenso(q, idioma)} {um if q == 1 else varios}")
+    if resto:
+        partes.append(_ate_mil(resto, en))
+    if en or len(partes) == 1:
+        return " ".join(partes)
+    junta = " e " if (resto and (resto < 100 or resto % 100 == 0)) else " "
+    return " ".join(partes[:-1]) + (junta if resto else " ") + partes[-1]
+
+
+def _falado(w, idioma="pt"):
+    """a palavra do Whisper como ela é FALADA, pro alinhador: números por extenso, «%» = por cento, «1.000» (pt) = mil, «1,5» = um vírgula cinco"""
+    if not re.search(r"\d", w):
+        return w
+    en = str(idioma or "pt").lower().startswith("en")
+    t = w
+    t = re.sub(r"\d{1,3}(?:[.,]\d{3})+(?![.,]?\d)", lambda m: re.sub(r"[.,]", "", m.group()), t)   # 1.000 / 1,000 = mil
+    t = re.sub(r"(\d+)[.,](\d+)", lambda m: f"{m.group(1)} {'point' if en else 'vírgula'} {m.group(2)}", t)
+    t = t.replace("%", " percent" if en else " por cento")
+    return re.sub(r"\d+", lambda m: " " + extenso(int(m.group()), idioma) + " ", t)
+
+
+def alinhar(x16, segmentos, dispositivo="cuda", idioma=None):
     """cada palavra no ms: MMS_FA no trecho de cada segmento (±0,3 s) + conferência na onda (início/fim onde a energia passa de
-    pico − 40 dB, só nas bordas de fala). Fala rápida demais pro alinhador = fica o tempo do próprio Whisper nesse trecho."""
+    pico − 40 dB, só nas bordas de fala). Fala rápida demais pro alinhador = fica o tempo do próprio Whisper nesse trecho.
+    20/11 (achado da Fase 1B: «em 90 dias que eu não fiz em 27 anos» saía «em dias que eu nao fiz em anos»): o alinhador só lê letras
+    sem acento; antes, quando a conta de palavras limpas não batia com a do Whisper (número, «guarda-chuva»), o trecho INTEIRO voltava
+    com as palavras limpas (sem número e sem acento). Agora cada palavra do Whisper vira as suas letras faladas (número por extenso) só
+    pro alinhador, e o tempo dela vai da 1ª à última letra dela: a palavra devolvida é SEMPRE a original. Símbolo solto (sem letra nem
+    número, ex. «—») não tem som pra alinhar: sai, como já saía."""
     import torch
     from torchaudio.pipelines import MMS_FA as b
     mdl = _mms(dispositivo); tok = b.get_tokenizer(); aln = b.get_aligner()
@@ -321,7 +393,9 @@ def alinhar(x16, segmentos, dispositivo="cuda"):
     for s in segmentos:
         a, bb = max(0, s["ini"] - 0.3), s["fim"] + 0.3
         orig = [w["p"] for w in s.get("palavras", [])] or s["txt"].split()
-        lw = _limpa(" ".join(orig))
+        grupos = [(o, _limpa(_falado(o, idioma))) for o in orig]
+        grupos = [(o, g) for o, g in grupos if g]
+        lw = [t for _, g in grupos for t in g]
         if not lw: continue
         wav = torch.from_numpy(x16[int(a * 16000):int(bb * 16000)])[None].to(dispositivo)
         try:
@@ -330,8 +404,10 @@ def alinhar(x16, segmentos, dispositivo="cuda"):
         except RuntimeError:
             ws += [{"p": w["p"], "ini": w["ini"], "fim": w["fim"], "como": "whisper"} for w in s.get("palavras", [])]; continue
         r = wav.shape[1] / em.shape[1] / 16000
-        for w, o, x in zip(lw, orig if len(orig) == len(lw) else lw, sp):
-            ws.append({"p": o, "ini": a + x[0].start * r, "fim": a + x[-1].end * r, "como": "mms"})
+        k = 0
+        for o, g in grupos:
+            x0, x1 = sp[k], sp[k + len(g) - 1]; k += len(g)
+            ws.append({"p": o, "ini": a + x0[0].start * r, "fim": a + x1[-1].end * r, "como": "mms"})
     for i, w in enumerate(ws):
         pk = float(env[int(w["ini"] * 1000):max(int(w["ini"] * 1000) + 1, int(w["fim"] * 1000))].max()) if n else -60
         if i == 0 or w["ini"] - ws[i - 1]["fim"] > 0.12:
@@ -354,7 +430,7 @@ def rodar(A, ctx):
     t = transcrever(x16, ctx.idioma, dev, palavras=True)
     if not base.SEGURAR:                       # no lote o Whisper fica pro próximo vídeo (o lote solta no fim da peça)
         soltar()
-    pal = alinhar(x16, t["segmentos"], dev)
+    pal = alinhar(x16, t["segmentos"], dev, t.get("idioma") or ctx.idioma)
     segs = [{k: v for k, v in s.items() if k != "palavras"} for s in t["segmentos"]]
     return {"sem_som": False, "idioma": t["idioma"], "modelo": t["modelo"], "segmentos": segs, "palavras": pal, "descartados": t["descartados"],
             "nota": "tempos do arquivo (sem descontar a folga do AAC: ver preparo.folga_aac_s)"}

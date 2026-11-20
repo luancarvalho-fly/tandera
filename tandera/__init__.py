@@ -18,7 +18,8 @@ from . import base                                   # leve: só biblioteca padr
 from .armazem import Analise, pasta_do_video
 from .manifesto import PECAS, ORDEM, TROCAS, VERSAO_MOTOR, padrao
 
-__all__ = ["analisar", "abrir", "transcrever", "rotular", "rotular_varios", "batidas", "dispositivo_auto", "versao", "Analise", "sinal", "PECAS", "ORDEM", "padrao", "no_ambiente"]
+__all__ = ["analisar", "abrir", "transcrever", "rotular", "rotular_varios", "batidas", "dispositivo_auto", "versao", "Analise", "sinal", "PECAS", "ORDEM",
+           "padrao", "no_ambiente", "residente"]
 
 
 def no_ambiente():
@@ -61,6 +62,18 @@ def analisar(video, pecas=None, perfil=None, refazer=(), placa=True, idioma=None
     e a fala (cada palavra no ms), os rótulos e o sinal medidos neles ficam GUARDADOS — rodar de novo só lê."""
     if placa == "auto":
         placa = dispositivo_auto() == "cuda"
+    # 20/11 (otimização, item 3): o MOTOR QUENTE (tandera\residente.py, porta 7797) de pé = a análise roda nele, com os modelos já
+    # abertos (o porteiro decide quanto cabe na placa). Fora do ar / caiu no meio = o jeito de sempre (o que ele já guardou não roda de novo).
+    from . import residente
+    if residente.usar():
+        try:
+            residente.analisar_remoto(video, pecas, perfil, refazer, placa and os.environ.get("CUDA_VISIBLE_DEVICES", None) not in ("", "-1"),
+                                      idioma, pasta, stems, mostrar=(print if sys.stdout is not None else None))
+            return Analise(video, pasta)
+        except residente.Caiu:
+            pass
+    else:
+        residente.ligar()                                # não estava de pé: sobe escondido pro PRÓXIMO pedido (este vai do jeito de sempre)
     if no_ambiente():
         from . import motor
         return motor.rodar(video, pecas, perfil, refazer, placa and os.environ.get("CUDA_VISIBLE_DEVICES", None) not in ("", "-1"), idioma, pasta,
@@ -115,6 +128,15 @@ def transcrever(audio, idioma=None, dispositivo="cuda", palavras=False, rapido=F
     está carregado (whisper-server 8178 do ditado); se ele estiver fora do ar, o Whisper do Tandera. Todo app transcreve por AQUI.
     modelo="large" (01/11): o large-v3 da dublagem (DUBX, decisão dele de 23/08), sempre pelo servidor próprio na 8899.
     srt=<caminho>: grava a legenda SRT (max_len ≤ 1 = uma palavra por bloco)."""
+    # 20/11 (item 3): o Whisper do Tandera (turbo, na placa) pelo MOTOR QUENTE — já aberto, sem pagar o abrir. O rápido (8178) e o large
+    # (8899) já são servidores quentes; o processador pedido de propósito (Kakashi --cpu) fica aqui mesmo.
+    from . import residente
+    if modelo == "turbo" and not rapido and dispositivo == "cuda" and isinstance(audio, str) and residente.usar():
+        try:
+            return residente.pedir("/transcrever", {"audio": os.path.abspath(audio), "idioma": idioma, "palavras": palavras,
+                                                    "srt": os.path.abspath(srt) if srt else None, "max_len": max_len})["r"]
+        except residente.Caiu:
+            pass
     if no_ambiente():
         from .pecas import fala
         try:
@@ -135,6 +157,12 @@ def transcrever(audio, idioma=None, dispositivo="cuda", palavras=False, rapido=F
 
 def rotular(wav, dispositivo="cuda"):
     """etiquetas AudioSet (CED-Base, a peça «rotulos») de um arquivo de som qualquer — pra stems que vieram prontos: {janelas:[{t, db, musica, rotulos}]}"""
+    from . import residente
+    if dispositivo == "cuda" and residente.usar():           # 20/11 (item 3): o CED quente no motor quente
+        try:
+            return residente.pedir("/rotular", {"wav": os.path.abspath(wav)})["r"]
+        except residente.Caiu:
+            pass
     if no_ambiente():
         from .pecas import rotulos
         return {"modelo": "mispeech/ced-base", "passo": 0.5, "janela": 1.0, "janelas": rotulos.etiquetar(base.ler_audio(wav, 16000), dispositivo)}
@@ -161,6 +189,12 @@ def rotular_varios(wavs, dispositivo="cpu"):
 def batidas(wav, dispositivo="cuda"):
     """batidas de um arquivo de som (a peça «batida»: Beat This! + ataque na onda + grade fechada) SEM separar — pra música que já vem
     sozinha: {batidas, tempos_fortes, grade, bpm}"""
+    from . import residente
+    if dispositivo == "cuda" and residente.usar():           # 20/11 (item 3): o Beat This! quente no motor quente
+        try:
+            return residente.pedir("/batidas", {"wav": os.path.abspath(wav)})["r"]
+        except residente.Caiu:
+            pass
     if no_ambiente():
         from .pecas import batida
         b = batida.batidas(wav, dispositivo == "cuda"); g = batida.grade_na_onda(wav, b["batidas"]); base.liberar_torch()

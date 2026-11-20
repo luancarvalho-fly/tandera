@@ -143,6 +143,11 @@ def rodar_bloco(itens, placa=True, perfil=None, log=base.log, trabalho=None, cpu
     → {"videos": {id: {pasta, rodou, falhou, pulou, guardada}}, "pecas": {peca: {carregar_s, s, videos}}, "s": total}"""
     base.SEGURAR = True
     os.environ["TANDERA_FUNDO"] = "1"     # 20/11: o lote é trabalho de FUNDO — a Placa/o porteiro seguem a regra 9 (premiere-uso) pra ele
+    try:                                  # 20/11 (item 3): o lote ocupa a placa sozinho — o motor quente solta os dele antes (e vê a trava)
+        from . import residente
+        residente.soltar_remoto(tudo=True)
+    except Exception:
+        pass
     perfil = perfil or base.perfil_da_maquina()
     tem_placa = bool(placa) and _tem_placa()
     T0 = time.monotonic()

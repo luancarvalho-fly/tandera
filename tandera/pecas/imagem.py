@@ -44,7 +44,8 @@ def rodar(A, ctx):
             out.append(_v(m.get_image_features(pixel_values=x["pixel_values"].to(m.dtype))))
     E = np.concatenate(out) if out else np.zeros((0, 1152), np.float32)
     np.savez_compressed(os.path.join(A.dir("imagem"), "siglip2.npz"), vis=E.astype(np.float16), t_vis=np.array([int(f[:5]) - 0.5 for f in qs]))
-    soltar()
+    if not base.SEGURAR:                       # 20/11: no motor quente (e no lote) o SigLIP fica pro próximo; quem segura é que solta
+        soltar()
     return {"quadros": len(qs), "arquivo": "pecas/imagem/siglip2.npz", "dim": int(E.shape[1]) if len(E) else 1152}
 
 

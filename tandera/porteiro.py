@@ -124,6 +124,12 @@ def liberada_pro_fundo():
 
 # ------------------------------------------------------------------ quem pode soltar memória
 _SOLTADORES = []          # funções que soltam modelos NOSSOS quentes (o motor residente registra a dele): f(mib_que_falta) -> None
+pedindo = ""              # quem está pedindo agora (o soltador do motor quente protege o modelo dessa peça)
+
+
+def ja_quente(peca):
+    """MiB que a peça já tem abertos neste processo (o motor quente troca esta função pela dele; fora dele = 0)"""
+    return 0
 
 
 def registrar_soltador(f):
@@ -189,11 +195,19 @@ def vaga(mib, quem, espera_s=20, menos_ollama=()):
             return True, f"na placa ({v['livre'] / 1024:.1f} GB livres)"
         t0 = time.monotonic()
         falta = mib + MARGEM_MIB - v["livre"]
-        for f in list(_SOLTADORES):                         # 1) os nossos quentes (motor residente)
+        global pedindo
+        pedindo = quem                                      # o motor quente não solta o modelo de quem está pedindo
+        for f in list(_SOLTADORES):                         # 1) os nossos quentes (motor residente, quando é ele que pede)
             try: f(falta)
             except Exception: pass
+        remoto = 0
+        try:                                                #    ou o motor quente (outro processo: DUBX, fila, Freak) solta os dele
+            from . import residente
+            remoto = residente.soltar_remoto(falta)
+        except Exception:
+            pass
         soltos = soltar_ollama(menos=menos_ollama)          #    e o Ollama parado que não é o do ditado
-        ok = _espera_caber(mib, 1.5 if (soltos or _SOLTADORES) else 0)
+        ok = _espera_caber(mib, 1.5 if (soltos or _SOLTADORES or remoto) else 0)
         if not ok:                                          # 2) o do ditado também
             soltos += soltar_ollama(ate_o_do_ditado=True, menos=menos_ollama)
             ok = _espera_caber(mib, 1.5 if soltos else 0)

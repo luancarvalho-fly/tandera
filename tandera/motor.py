@@ -54,6 +54,7 @@ def rodar(video, pecas=None, perfil=None, refazer=(), placa=True, idioma=None, p
                 # Antes: o Ollama inteiro descarregado antes de toda peça (até o modelo do ditado) e, com o Premiere aberto, tudo no processador.
                 from . import porteiro
                 precisa_mib = int(PECAS[p].get("vram_gb", 1) * 1024)
+                precisa_mib = max(0, precisa_mib - porteiro.ja_quente(p))   # 20/11 (item 3): no motor quente, o que a peça já tem aberto não pede de novo
                 if p == "olho" and any(n.startswith("gemma") for n in base.ollama_carregados()):
                     precisa_mib = 0                        # o olho fala com o Gemma que JÁ está na placa (Ollama): não pede memória nova
                 ok, motivo = porteiro.vaga(precisa_mib, f"Tandera {p}",

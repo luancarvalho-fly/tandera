@@ -61,7 +61,8 @@ def rodar(A, ctx):
     js, ts = janelas(base.ler_audio(s, 48000))
     aud = retratos_audio(js, dev)
     np.savez_compressed(os.path.join(A.dir("som"), "clap.npz"), aud=aud.astype(np.float16), t_aud=np.array(ts))
-    soltar()
+    if not base.SEGURAR:                       # 20/11: no motor quente (e no lote) o CLAP fica pro próximo; quem segura é que solta
+        soltar()
     return {"janelas": len(ts), "arquivo": "pecas/som/clap.npz", "dim": int(aud.shape[1]) if len(aud) else 512, "janela_s": 5.0, "passo_s": 2.5}
 
 

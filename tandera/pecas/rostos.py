@@ -118,11 +118,13 @@ def rodar(A, ctx):
     p = A["preparo"]
     if not p["tem_imagem"]: return {"quadros": [], "rostos": 0}
     pasta = preparo.caminho(A, "q1"); qs = sorted(os.listdir(pasta))
-    det = Scrfd(ctx.placa); emo = Expressao(ctx.placa)
+    # 20/11 (otimização, item 3): os 3 modelos de rosto pelo segurado — no motor quente (e no lote) ficam abertos pro próximo vídeo
+    det = base.segurado(("scrfd", bool(ctx.placa)), lambda: Scrfd(ctx.placa))
+    emo = base.segurado(("emo", bool(ctx.placa)), lambda: Expressao(ctx.placa))
     onde = {"rostos (SCRFD)": det.s.get_providers()[0], "expressão": emo.s.get_providers()[0]}
     if ctx.placa and any(v != "CUDAExecutionProvider" for v in onde.values()):
         ctx.log("ATENÇÃO: modelo de rosto no PROCESSADOR em vez da placa:", onde)
-    ada = AdaFace("cuda" if ctx.placa else "cpu")
+    ada = base.segurado(("adaface", bool(ctx.placa)), lambda: AdaFace("cuda" if ctx.placa else "cpu"))
     rec_dir = os.path.join(A.dir("rostos"), "recortes"); os.makedirs(rec_dir, exist_ok=True)
     por_q, alinhados, meta = [], [], []
     for f in qs:
@@ -149,7 +151,7 @@ def rodar(A, ctx):
         if lst: por_q.append({"t": t, "rostos": lst})
     dig = ada.digitais(alinhados)
     np.savez_compressed(os.path.join(A.dir("rostos"), "digitais.npz"), emb=dig.reshape(-1, 512), meta=np.array(meta, np.float32).reshape(-1, 4))
-    del ada; base.liberar_torch()
+    del ada, det, emo; base.liberar_torch()
     return {"quadros": por_q, "rostos": sum(len(x["rostos"]) for x in por_q), "digitais": int(len(dig)), "onde": onde,
             "arquivos": {"digitais": "pecas/rostos/digitais.npz", "recortes": "pecas/rostos/recortes"},
             "obs": "t = segundo do quadro 1/s (centro do segundo); digital = índice em digitais.npz (AdaFace 512, normalizada)"}

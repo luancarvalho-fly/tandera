@@ -140,8 +140,17 @@ def main():
             de = base.mmss(r["de"]) if r.get("de") is not None else "—"
             print(f"{r['nota']:.4f}  {de:>9}  [{r['tipo']}] {r['texto'][:150]}")
         return
-    from . import motor
+    from . import motor, residente
     versoes = dict(v.split("=", 1) for v in x.versao_de)
+    stems = dict(v.split("=", 1) for v in x.stem) or None
+    # 20/11 (otimização, item 3): o MOTOR QUENTE de pé = a análise roda nele (modelos já abertos); o andamento aparece aqui igual
+    if not versoes and residente.usar():
+        try:
+            residente.analisar_remoto(x.video, lista(x.pecas) or None, x.perfil, lista(x.refazer), not x.sem_placa, x.idioma, x.pasta, stems,
+                                      mostrar=print)
+            return
+        except residente.Caiu as e:
+            base.log(f"o motor quente não respondeu ({e}) — rodando aqui mesmo")
     motor.rodar(x.video, lista(x.pecas) or None, x.perfil, lista(x.refazer), not x.sem_placa, x.idioma, x.pasta, versoes,
                 stems=dict(v.split("=", 1) for v in x.stem) or None)
 

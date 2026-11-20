@@ -27,7 +27,7 @@ PECAS = {
     "cortes": dict(
         o_que="corte no quadro exato (1ª opinião) + 2ª opinião + possível jump cut",
         modelo="AutoShot (onnx do CUTX, limiar 0,296) + TransNetV2 (transnetv2-pytorch) + diferença de pixel",
-        versao="2026-11-01", onde="placa", depende=["preparo"], perfis=["pc", "servidor"], vram_gb=0.6),
+        versao="2026-11-01", onde="placa", depende=["preparo"], perfis=["pc", "servidor"], vram_gb=0.95),   # 20/11: medido +0,93 (era 0,6)
     "separacao": dict(
         o_que="separa voz / música / efeitos",
         modelo="BS-Roformer ep317 (audio-separator, placa) → BandIt Plus DnR (música × efeitos)",
@@ -35,7 +35,7 @@ PECAS = {
     "fala": dict(
         o_que="fala com tempo de cada palavra no milissegundo",
         modelo="Whisper large-v3-turbo (faster-whisper fp16; sem VAD; só os trechos COM SOM pela energia RELATIVA; sem herdar o texto do trecho anterior; filtro de laço) + MMS_FA (torchaudio) + conferência na onda",
-        versao="2026-11-01c", onde="placa", depende=["separacao"], perfis=["pc", "servidor"], vram_gb=2.5),
+        versao="2026-11-01c", onde="placa", depende=["separacao"], perfis=["pc", "servidor"], vram_gb=3.5),   # 20/11: Whisper + MMS juntos +3,48 medido (era 2,5)
     "entonacao": dict(
         o_que="altura da voz no começo/fim de cada trecho, final (sobe/desce), sílabas por segundo",
         modelo="Praat (parselmouth)", versao="2026-10-18", onde="cpu", depende=["separacao", "fala"], perfis=["pc", "servidor"], vram_gb=0),
@@ -90,7 +90,7 @@ PECAS = {
     "ovis": dict(
         o_que="retrato vídeo+som de cada trecho de 4 s (a fundação da busca)",
         modelo="Ovis-Omni-Embedding-3B (ATH-MaaS), trechos de 4 s — PC: 8 bits lote 4 (medido); servidor: bf16 lote 16", versao="2026-11-01",
-        onde="placa", depende=["preparo"], perfis=["pc", "servidor"], vram_gb=5.9),
+        onde="placa", depende=["preparo"], perfis=["pc", "servidor"], vram_gb=7.5),   # 20/11: medido +7,45 (era 5,9: o porteiro deixava entrar sem caber)
     "som": dict(
         o_que="retrato do som em janelas de 5 s a cada 2,5 s (som parecido, busca por frase em inglês)",
         modelo="CLAP laion/larger_clap_general", versao="2026-11-01", onde="placa", depende=["preparo"],
@@ -101,7 +101,7 @@ PECAS = {
         versao="2026-11-01", onde="placa", depende=["separacao"], perfis=["pc", "servidor"], vram_gb=0.6),
     "imagem": dict(
         o_que="retrato de cada quadro 1/s (imagem parecida, busca por frase)",
-        modelo="SigLIP 2 so400m-patch14-384", versao="2026-11-01", onde="placa", depende=["preparo"], perfis=["pc", "servidor"], vram_gb=2.0),
+        modelo="SigLIP 2 so400m-patch14-384", versao="2026-11-01", onde="placa", depende=["preparo"], perfis=["pc", "servidor"], vram_gb=2.8),   # 20/11: medido +2,63–2,78 (era 2,0)
     "sinal": dict(
         o_que="ataques do som (10 ms), picos de movimento, voz soando, vãos sem fala, eventos candidatos (som + imagem + etiqueta)",
         modelo="conta pura (fluxo espectral com limiar local; diferença de quadro); cortes do AutoShot", versao="2026-11-01",
