@@ -78,8 +78,13 @@ def _parar(ate):
     """motivo pra não começar o próximo bloco (None = segue)"""
     if ate and time.strftime("%H:%M") >= ate and time.strftime("%H:%M") < "18:00":
         return f"deu a hora ({ate}): o PC volta livre pro Luan"
-    if base.premiere_aberto():
-        return "o Premiere abriu: a placa é dele"
+    # 20/11 (otimização, item 2): a fila é trabalho de FUNDO — continua com a régua do MEDIDOR (agenda.py premiere-uso). Antes parava com
+    # o Premiere só ABERTO; agora para com ele EM USO, TRABALHANDO (exportando) ou na DÚVIDA, e segue com ele aberto e PARADO (16/11:
+    # «aberto ≠ em uso»).
+    from . import porteiro
+    os.environ["TANDERA_FUNDO"] = "1"                  # os filhos (python -m tandera) herdam: o porteiro trata como fundo
+    if not porteiro.liberada_pro_fundo():
+        return f"o Premiere está {porteiro.premiere()}: a placa é dele"
     trava = os.environ.get("TANDERA_TRAVA_PLACA") or os.path.join(base.TANDERA, "GPU_EM_USO.txt")   # pacote da Fly: era a trava fixa do PC do Luan
     if os.name == "nt" and os.path.exists(trava) and "tandera" not in open(trava, encoding="utf-8", errors="replace").read().lower():
         return "a placa está em uso por outro trabalho: " + open(trava, encoding="utf-8", errors="replace").read().strip()[:120]

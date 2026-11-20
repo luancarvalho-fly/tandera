@@ -47,12 +47,25 @@ def rodar(video, pecas=None, perfil=None, refazer=(), placa=True, idioma=None, p
             if falta:
                 rodada["pulou"][p] = f"falta a entrada: {', '.join(falta)}"; continue
             log(f"▶ {p} — {A.alvo(p)[1]} ({porque})")
-            if ctx.placa and PECAS[p]["onde"] == "placa" and p != "olho":
-                base.ollama_descarrega()                   # um modelo por vez na placa
+            ctx_p = ctx
+            if ctx.placa and PECAS[p]["onde"] == "placa" and not (stems and p == "separacao"):   # stems prontos: a separação não usa a placa
+                # 20/11 (otimização, itens 2/3): o PORTEIRO mede a memória livre da placa AGORA e solta o que é nosso (Ollama parado; o do
+                # ditado por último) só se a peça não couber. Não coube nem assim → SÓ esta peça vai pro processador, com aviso.
+                # Antes: o Ollama inteiro descarregado antes de toda peça (até o modelo do ditado) e, com o Premiere aberto, tudo no processador.
+                from . import porteiro
+                precisa_mib = int(PECAS[p].get("vram_gb", 1) * 1024)
+                if p == "olho" and any(n.startswith("gemma") for n in base.ollama_carregados()):
+                    precisa_mib = 0                        # o olho fala com o Gemma que JÁ está na placa (Ollama): não pede memória nova
+                ok, motivo = porteiro.vaga(precisa_mib, f"Tandera {p}",
+                                           menos_ollama=(tuple(n for n in base.ollama_carregados() if n.startswith("gemma")) if p == "olho" else ()))
+                if not ok:
+                    log(f"  ⚠ {p}: {motivo}")
+                    rodada.setdefault("avisos", {})[p] = motivo
+                    ctx_p = types.SimpleNamespace(**dict(vars(ctx), placa=False))
             try:
                 mod = importlib.import_module(f".pecas.{p}", __package__)
                 with base.Medida() as m:
-                    res = mod.rodar(A, ctx)
+                    res = mod.rodar(A, ctx_p)
                 med = m.resumo()
                 A.guardar(p, res, med, perfil)
                 refeitas.add(p); rodada["rodou"][p] = dict(med, porque=porque)

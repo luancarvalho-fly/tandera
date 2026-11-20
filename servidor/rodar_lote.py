@@ -87,7 +87,8 @@ def copia_local(a, dst):
 def ollama_no_ar():
     import urllib.request
     try:
-        urllib.request.urlopen("http://localhost:11434/api/version", timeout=2).read(); return True
+        # 20/11 (otimização, item 6): 127.0.0.1 — o «localhost» do Windows espera ~2 s no IPv6 e, com timeout=2, podia dar «fora do ar» à toa
+        urllib.request.urlopen("http://127.0.0.1:11434/api/version", timeout=2).read(); return True
     except Exception:
         return False
 

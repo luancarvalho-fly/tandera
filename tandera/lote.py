@@ -142,6 +142,7 @@ def rodar_bloco(itens, placa=True, perfil=None, log=base.log, trabalho=None, cpu
     """o bloco, PEÇA POR PEÇA (cada modelo uma vez). itens[i]["previa"] = o que o preparar() já fez nesse vídeo.
     → {"videos": {id: {pasta, rodou, falhou, pulou, guardada}}, "pecas": {peca: {carregar_s, s, videos}}, "s": total}"""
     base.SEGURAR = True
+    os.environ["TANDERA_FUNDO"] = "1"     # 20/11: o lote é trabalho de FUNDO — a Placa/o porteiro seguem a regra 9 (premiere-uso) pra ele
     perfil = perfil or base.perfil_da_maquina()
     tem_placa = bool(placa) and _tem_placa()
     T0 = time.monotonic()

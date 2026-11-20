@@ -4,6 +4,14 @@
 import json, os, platform, subprocess, sys, threading, time
 
 TANDERA = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))          # apps\TANDERA
+# 20/11/2026 (otimização, achado do estudo da «inference-optimisation-skill»: «guarde todo cache de compilação»): a placa compila código
+# na 1ª conta de cada processo (fala: 18–25 s na 1ª, ~5 s nas seguintes). O cache da NVIDIA do Windows (%APPDATA%\NVIDIA\ComputeCache)
+# estava CHEIO no teto de 1 GiB e se renovava inteiro em ~20 min (155 arquivos, todos de 18:04–18:14): cada processo novo recompilava.
+# Um cache SÓ NOSSO, de 4 GiB, no disco rápido: o que foi compilado uma vez fica. Configuração deste processo e dos filhos (não do Windows).
+# Tem que vir ANTES de qualquer uso da placa: o base é o 1º import do Tandera (e o Freak/Kakashi/Flynder importam o Tandera).
+if os.name == "nt":
+    os.environ.setdefault("CUDA_CACHE_PATH", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "trabalho", "cuda-cache"))
+    os.environ.setdefault("CUDA_CACHE_MAXSIZE", str(4 * 2 ** 30))
 MODELOS = os.environ.get("TANDERA_MODELOS") or os.path.join(TANDERA, "modelos")   # 06/11: no servidor vem dos pesos (preparar_tandera.sh)
 ANALISES = os.environ.get("TANDERA_ANALISES") or os.path.join(TANDERA, "analises")
 # 01/11 (panelas de som): o Tandera acha as ferramentas pela MÁQUINA em que está. Linux = o servidor (RunPod, ou o WSL na prova): cada
@@ -62,7 +70,10 @@ else:
     CHAVE_GEMINI = _env("TANDERA_CHAVE_GEMINI") or os.path.expanduser("~/.gemini/chave-api.txt")
     MEDIDOR = None
     FONTE = _env("TANDERA_FONTE") or "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"   # mesma medida da Arial Bold
-OLLAMA = _env("TANDERA_OLLAMA") or "http://localhost:11434/api"
+# 20/11 (otimização, item 6): 127.0.0.1 e não «localhost». No Windows o «localhost» tenta primeiro o endereço IPv6 (::1), o Ollama só
+# escuta no IPv4 e cada chamada esperava ~2 s antes de cair no 127.0.0.1 — medido: localhost 2,03 s × 127.0.0.1 0,001 s, ~11 chamadas
+# por análise = ~22 s. Mesmo serviço, mesma resposta.
+OLLAMA = _env("TANDERA_OLLAMA") or "http://127.0.0.1:11434/api"
 SEM_JANELA = 0x08000000 if os.name == "nt" else 0
 # 04/11 (porte do Mac, Gu): a placa da Apple (MPS) só nas peças PROVADAS iguais ao processador. Hoje: o BandIt da separação (música ×
 # efeitos 57 dB × processador num vídeo de 85 s; 118 s × 342 s). O BS-Roformer já usa o MPS sozinho (audio-separator). Desliga:
@@ -314,18 +325,26 @@ def ollama_descarrega(modelo=None):
 
 
 class Placa:
-    """UM trabalho de placa por vez: Premiere fechado, a trava GPU_EM_USO.txt (o Medidor escreve), o aviso no Medidor no começo e o
-    «terminou» no fim, o Ollama descarregado antes de cada peça que não é o olho."""
+    """O aviso no Medidor no começo e o «terminou» no fim de um trabalho de placa.
+    20/11 (otimização, item 2 — ele: «é pra rodar tudo na placa de video po... tem que funcionar mesmo eu usando o Premiere»): o que ELE
+    pede (plugin, app, Kakashi, Flynder) NÃO para mais com o Premiere aberto nem com a trava de outro trabalho: quem decide, peça por peça,
+    é o porteiro (porteiro.vaga, pela memória livre de verdade). Só o trabalho de FUNDO (fila da noite, lote, o Claude sozinho —
+    porteiro.fundo()) continua parando com ele usando o Premiere (agenda.py premiere-uso: em uso / trabalhando / dúvida) ou com a trava
+    GPU_EM_USO.txt de outro trabalho (um trabalho de fundo por vez, regra 9).
+    O Ollama não é mais descarregado inteiro aqui: o porteiro solta só se a peça precisar da memória (o do ditado por último)."""
     def __init__(self, usar, o_que, dura_min=20, vram=8):
         self.usar, self.o_que, self.dura, self.vram, self.id = usar, o_que, dura_min, vram, None
 
     def __enter__(self):
         if not self.usar: return self
-        if premiere_aberto():
-            raise SystemExit("PREMIERE ABERTO — o Tandera não usa a placa com o Premiere aberto. Feche e rode de novo (o que já foi medido fica guardado).")
+        from . import porteiro
         trava = _env("TANDERA_TRAVA_PLACA") or os.path.join(TANDERA, "GPU_EM_USO.txt")   # pacote da Fly: era a trava fixa do PC do Luan
-        if os.name == "nt" and os.path.exists(trava) and "tandera" not in open(trava, encoding="utf-8", errors="replace").read().lower():
-            raise SystemExit("A PLACA ESTÁ EM USO por outro trabalho: " + open(trava, encoding="utf-8", errors="replace").read().strip()[:200])
+        if porteiro.fundo():
+            if not porteiro.liberada_pro_fundo():
+                raise SystemExit(f"PREMIERE {porteiro.premiere().upper()} — trabalho de fundo não usa a placa enquanto ele edita (regra 9). "
+                                 "Rode de novo depois (o que já foi medido fica guardado).")
+            if os.name == "nt" and os.path.exists(trava) and "tandera" not in open(trava, encoding="utf-8", errors="replace").read().lower():
+                raise SystemExit("A PLACA ESTÁ EM USO por outro trabalho: " + open(trava, encoding="utf-8", errors="replace").read().strip()[:200])
         if os.name == "nt" and os.path.exists(MEDIDOR) and not os.environ.get("TANDERA_SEM_MEDIDOR"):
             try:
                 py = os.environ.get("TANDERA_PY_MEDIDOR") or "python"
@@ -335,7 +354,6 @@ class Placa:
                 self.id = (r.stdout.strip().splitlines() or [None])[-1]
             except Exception as e:
                 log("aviso: não consegui avisar no Medidor:", e)
-        ollama_descarrega()
         return self
 
     def __exit__(self, *e):

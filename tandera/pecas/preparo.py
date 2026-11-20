@@ -66,13 +66,21 @@ def _nvdec():
 
 
 # PC (02/11): o formato em que o quadro aberto pela placa desce (só os medidos iguais byte a byte; outro = o processador abre)
-_DESCE = {"yuv420p": "nv12", "yuv420p10le": "p010le"}
+_DESCE = {"yuv420p": "nv12", "yuv420p10le": "p010le",
+          # 20/11 (otimização, item 9): o take da Sony (yuvj420p = faixa cheia) também — provado no 4K do C0022, 528/528 quadros idênticos
+          # byte a byte ao processador na saída 480p yuv420p (o chip marca a faixa cheia sozinho), 1,82 s × 3,56 s
+          # (estudo\otimizacao-plugins\fase1\prova_item9.txt). Antes ele caía no processador com «formato que não foi medido».
+          "yuvj420p": "nv12"}
 
 
 def _placa_pc(ctx):
     """PC: a placa abre o vídeo só se esta análise já avisou a placa no Medidor (motor: placa_avisada — com --sem-placa, ou só peças de
     processador, não avisa e o preparo fica no processador) e o Premiere continua fechado"""
-    return bool(getattr(ctx, "placa_avisada", False)) and not base.premiere_aberto() and _nvdec()
+    # 20/11 (otimização, item 2): o Premiere aberto não tira mais o chip de vídeo; quem decide é o porteiro (abrir pelo chip pede ~0,4 GB)
+    if not (bool(getattr(ctx, "placa_avisada", False)) and _nvdec()):
+        return False
+    from .. import porteiro
+    return porteiro.vaga(400, "Tandera preparo (chip de vídeo)", espera_s=5)[0]
 
 
 def _prerolo(v):

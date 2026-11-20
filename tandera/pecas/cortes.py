@@ -18,7 +18,17 @@ def _quadros_pequenos(video, W=48, H=27, fmt="rgb24", c=3):
                                f"scale={W}:{H}:flags=bilinear", "-fps_mode", "passthrough", "-pix_fmt", fmt, "-f", "rawvideo", "-"],
                               capture_output=True, creationflags=base.SEM_JANELA)
     # 07/11: no servidor o 4K abre pelo chip de vídeo da placa (NVDEC); o processador só reduz. Se o chip recusar, o jeito de sempre
-    r = ler(["-hwaccel", "cuda"]) if os.name != "nt" else None
+    # 20/11 (otimização, item 9): no PC também — provado no 4K do C0022 (yuvj420p): bytes IDÊNTICOS nos dois tamanhos (48×27 rgb24 e
+    # 96×54 cinza), 1,8 s × 3,3 s por leitura (fase1\prova_item9_cortes.txt). O porteiro decide (o chip pede pouca memória); trabalho de
+    # fundo com ele no Premiere = processador, como antes.
+    usa_chip = os.name != "nt"
+    if not usa_chip:
+        try:
+            from .. import porteiro
+            usa_chip = porteiro.vaga(400, "Tandera cortes (chip de vídeo)", espera_s=0)[0]
+        except Exception:
+            usa_chip = False
+    r = ler(["-hwaccel", "cuda"]) if usa_chip else None
     if r is None or r.returncode != 0 or not r.stdout: r = ler([])
     t = W * H * c
     q = np.frombuffer(r.stdout[: len(r.stdout) // t * t], np.uint8)

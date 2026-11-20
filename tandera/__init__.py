@@ -42,14 +42,21 @@ def _cli(args, capturar=False):
 
 
 def dispositivo_auto():
-    """'cpu' se o Premiere está aberto (a placa é dele: GPU pesada com o Premiere aberto vaza pra RAM e rasteja) ou se quem chamou escondeu
-    a placa (CUDA_VISIBLE_DEVICES vazio); senão 'cuda'"""
-    return "cpu" if os.environ.get("CUDA_VISIBLE_DEVICES", None) in ("", "-1") or base.premiere_aberto() else "cuda"
+    """'cuda' por padrão, com o Premiere aberto ou fechado (20/11, ele: «é pra rodar tudo na placa de video po... tem que funcionar
+    mesmo eu usando o Premiere»). Quem divide a placa com o Premiere é o PORTEIRO (porteiro.vaga), peça por peça, pela memória livre
+    de verdade. 'cpu' só quando: quem chamou escondeu a placa (CUDA_VISIBLE_DEVICES vazio), ou é trabalho de FUNDO (fila, lote, o
+    Claude sozinho) com ele usando o Premiere (regra 9).
+    Antes (até 20/11): 'cpu' sempre que o Premiere estivesse aberto — a rodada de 22 s de 4K ia de 123 s pra 244 s."""
+    from . import porteiro
+    if porteiro.escondida() or (porteiro.fundo() and not porteiro.liberada_pro_fundo()):
+        return "cpu"
+    return "cuda"
 
 
 def analisar(video, pecas=None, perfil=None, refazer=(), placa=True, idioma=None, pasta=None, stems=None):
-    """roda (ou relê) a análise do vídeo e devolve a Analise guardada. placa: True (padrão: com o Premiere aberto o Tandera RECUSA a placa
-    e para), False (processador) ou "auto" (processador se o Premiere estiver aberto).
+    """roda (ou relê) a análise do vídeo e devolve a Analise guardada. placa: True (padrão: na placa, com o Premiere aberto ou fechado; o
+    porteiro manda pro processador só a peça que não couber na memória livre), False (processador) ou "auto" (= dispositivo_auto()).
+    (20/11: antes, com o Premiere aberto, True RECUSAVA e "auto" ia tudo pro processador.)
     stems = {"voz": wav, "resto" ou "musica": wav[, "efeitos", "mix"]} quando a voz/música vieram PRONTAS (01/11): valem como a separação,
     e a fala (cada palavra no ms), os rótulos e o sinal medidos neles ficam GUARDADOS — rodar de novo só lê."""
     if placa == "auto":

@@ -147,7 +147,9 @@ def exemplos(video, placa=True, idioma=None, so_contar=False, olho=True, log=bas
     falta = [i for i, d in enumerate(nomes) if not os.path.exists(d)]
     comos = ["já cortada"] * len(jan)
     if falta:
-        usar = placa and not base.premiere_aberto()           # com o Premiere aberto o corte vai pelo processador (a saída é outra cópia, não erro)
+        # 20/11 (otimização, item 2): o Premiere aberto não manda mais o corte pro processador; o porteiro decide pela memória livre
+        from . import porteiro
+        usar = placa and porteiro.vaga(1024, "Tandera cortando janelas", espera_s=10)[0]
         from concurrent.futures import ThreadPoolExecutor
         t0 = time.monotonic()
         with base.Placa(usar, f"Tandera: cortando {len(falta)} janelas de {os.path.basename(video)}", dura_min=5, vram=1), \
