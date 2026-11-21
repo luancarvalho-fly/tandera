@@ -700,7 +700,8 @@ def main():
     for k in ("CLAUDECODE", "TANDERA_FUNDO", "TANDERA_PEDIDO_DELE"):
         os.environ.pop(k, None)
     os.makedirs(os.path.dirname(LOG), exist_ok=True)
-    if sys.stdout is None or not sys.stdout.isatty():         # pythonw: o andamento vai pro trabalho\residente.log
+    from .base import sem_console                             # 20/11 Fase 2: o renascer vem com a saída no NUL (isatty=True no Windows)
+    if sem_console():                                         # pythonw: o andamento vai pro trabalho\residente.log
         try:                                                  # o registro não cresce sem fim: passou de 5 MB, o velho vira .1
             if os.path.getsize(LOG) > 5 * 2 ** 20:
                 os.replace(LOG, LOG + ".1")

@@ -82,13 +82,34 @@ MAC_MPS = (sys.platform == "darwin" and platform.machine() == "arm64" and not _e
            and _env("CUDA_VISIBLE_DEVICES") not in ("", "-1"))
 
 
+def sem_console():
+    """True = este processo NÃO tem terminal na frente (pythonw, filho escondido, saída num arquivo ou no NUL).
+    20/11 ~23h20 (otimização Fase 2, medido): o motor quente renasce a cada ~15 min parado com a saída no NUL (stdout=DEVNULL); no
+    Windows o NUL responde isatty()=True, então o teste antigo («a saída é um terminal?») achava que havia console, NÃO ligava o
+    «sem janela» e o ffmpeg do medidor de música abria uma janela do Terminal na tela dele (vigia fase2\\janelas2.log, 23:05/23:07/23:16).
+    Agora vale também «não existe janela de console neste processo» (GetConsoleWindow = 0), que é a pergunta certa."""
+    if sys.stdout is None:
+        return True
+    if os.name == "nt":
+        try:
+            import ctypes
+            if ctypes.windll.kernel32.GetConsoleWindow() == 0:
+                return True
+        except Exception:
+            pass
+    try:
+        return not sys.stdout.isatty()
+    except Exception:
+        return True
+
+
 def sem_janela():
     """sem console (pythonw ou filho escondido da fila): todo programa que ESTE processo abrir sai sem janela.
     04/11: o remendo morava só na fila.py; os filhos dela (python -m tandera, separação, medidor) não tinham, e o Terminal piscava.
     Agora vale em qualquer processo que importe o Tandera sem terminal na frente (no cmd/terminal dele, nada muda)."""
     if os.name != "nt" or getattr(subprocess.Popen.__init__, "_tandera_sem_janela", False):
         return
-    if not (sys.stdout is None or not sys.stdout.isatty()) or os.environ.get("TANDERA_SEM_JANELA", "1") != "1":
+    if not sem_console() or os.environ.get("TANDERA_SEM_JANELA", "1") != "1":
         return
     orig = subprocess.Popen.__init__
 

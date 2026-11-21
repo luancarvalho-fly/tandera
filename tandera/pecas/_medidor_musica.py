@@ -16,7 +16,9 @@ def medir(arq, ini=0.0, dur=None, dispositivo="cpu", beats=None):
     import subprocess
     sr = 22050
     cmd = ["ffmpeg", "-v", "error", "-ss", "%.4f" % ini] + (["-t", "%.4f" % dur] if dur else []) + ["-i", arq, "-vn", "-ac", "1", "-ar", str(sr), "-f", "f32le", "-"]
-    y = np.frombuffer(subprocess.run(cmd, capture_output=True).stdout, np.float32).copy()   # ffmpeg abre qualquer formato (aac incluso)
+    # 20/11 Fase 2: sem janela EXPLÍCITO (como todo ffmpeg do base.py) — dependia só da trava global, que falhava no motor quente renascido
+    y = np.frombuffer(subprocess.run(cmd, capture_output=True, stdin=subprocess.DEVNULL,
+                                     creationflags=0x08000000 if os.name == "nt" else 0).stdout, np.float32).copy()   # ffmpeg abre qualquer formato
     T = len(y) / sr
     # batidas
     try:
