@@ -472,7 +472,8 @@ def _dispositivo(c, mib, quem, ja_quente):
 
 def trabalho_transcrever(c):
     """o Whisper do Tandera. via: «tandera» (padrão: o próprio Whisper turbo, quente se der) · «quente» (o que já estiver quente: o do
-    Tandera; senão o do ditado 8178, que já está na placa; senão abre o do Tandera)"""
+    Tandera; senão o do ditado 8178, que já está na placa; senão abre o do Tandera) · «placa» (20/11 noite, o Kakashi ao vivo: o do
+    Tandera NA PLACA; o porteiro sem vaga = o do ditado 8178, nunca o processador se o 8178 estiver no ar)"""
     from . import base
     from .pecas import fala
     _preparar_torch()
@@ -483,6 +484,12 @@ def trabalho_transcrever(c):
         r["como"] = "Whisper do ditado (8178), já quente"
         return {"r": r}
     dev, motivo = _dispositivo(c, 2300, "residente Whisper", quente)
+    if c.get("via") == "placa" and dev != "cuda" and fala.rapido_no_ar():
+        # 20/11 noite (o Kakashi transcrevendo DURANTE a gravação): pediu o Whisper do Tandera na placa e o porteiro não deu vaga (o
+        # Premiere pesado) — o do ditado (8178) já está na placa, sem pedir memória nova: melhor que ir pro processador
+        r = fala._transcrever_servidor(x16, c.get("idioma"), bool(c.get("palavras")))
+        r["como"] = "Whisper do ditado (8178) — sem vaga na placa pro do Tandera (%s)" % motivo
+        return {"r": r}
     t0 = time.monotonic()
     r = fala.transcrever(x16, c.get("idioma"), dev, bool(c.get("palavras")) or bool(c.get("srt")))
     if c.get("srt"):

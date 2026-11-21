@@ -65,7 +65,9 @@ def analisar(video, pecas=None, perfil=None, refazer=(), placa=True, idioma=None
     # 20/11 (otimização, item 3): o MOTOR QUENTE (tandera\residente.py, porta 7797) de pé = a análise roda nele, com os modelos já
     # abertos (o porteiro decide quanto cabe na placa). Fora do ar / caiu no meio = o jeito de sempre (o que ele já guardou não roda de novo).
     from . import residente
-    if residente.usar():
+    # 20/11 noite: quem chamou guarda as análises em OUTRO lugar (TANDERA_ANALISES: um teste, a cópia do repositório) — o motor quente
+    # guarda no lugar DELE e a análise «sumia» pra quem chamou (teste_repos, passo 3: IndexError em rodadas[-1]). Aí roda aqui mesmo.
+    if residente.usar() and not os.environ.get("TANDERA_ANALISES"):
         try:
             residente.analisar_remoto(video, pecas, perfil, refazer, placa and os.environ.get("CUDA_VISIBLE_DEVICES", None) not in ("", "-1"),
                                       idioma, pasta, stems, mostrar=(print if sys.stdout is not None else None))
