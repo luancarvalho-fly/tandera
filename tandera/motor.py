@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """O MOTOR: roda as peças pedidas (com as de que elas dependem), na ORDEM, uma por vez na placa, e soma no que já estava guardado.
 Peça guardada com a versão atual (e com as entradas iguais) NÃO roda. Cada peça que roda tem o tempo e a placa medidos."""
-import importlib, os, time, traceback, types
+import importlib, os, sys, time, traceback, types
 
 from . import base
 from .armazem import Analise
@@ -57,8 +57,20 @@ def rodar(video, pecas=None, perfil=None, refazer=(), placa=True, idioma=None, p
                 precisa_mib = max(0, precisa_mib - porteiro.ja_quente(p))   # 20/11 (item 3): no motor quente, o que a peça já tem aberto não pede de novo
                 if p == "olho" and any(n.startswith("gemma") for n in base.ollama_carregados()):
                     precisa_mib = 0                        # o olho fala com o Gemma que JÁ está na placa (Ollama): não pede memória nova
-                ok, motivo = porteiro.vaga(precisa_mib, f"Tandera {p}",
-                                           menos_ollama=(tuple(n for n in base.ollama_carregados() if n.startswith("gemma")) if p == "olho" else ()))
+                lotes = PECAS[p].get("lotes_mib") if (perfil == "pc" and not os.environ.get(f"TANDERA_{p.upper()}_LOTE")) else None
+                if lotes:
+                    # 21/11 (otimização Fase 3, ele: «Otimiza tudo»): a peça que roda em lotes (o Ovis) pede o MAIOR lote que cabe
+                    # (lote 4 → 2 → 1); só vai pro processador se nem o lote 1 couber. Antes: 7,5 GB ou nada (Premiere aberto = processador).
+                    abrir = 0 if _placa_aberta() else porteiro.ABRIR_PLACA_MIB   # lotes_mib = com a placa já aberta no processo
+                    ok, motivo, lote = porteiro.vaga_escolhe(
+                        [(max(0, m + abrir - porteiro.ja_quente(p)), lt) for lt, m in lotes.items()], f"Tandera {p}")
+                    if ok:
+                        ctx_p = types.SimpleNamespace(**dict(vars(ctx), **{f"{p}_lote": lote}))
+                        if lote != max(lotes):
+                            log(f"  · {p}: lote {lote} (o que cabe na placa agora; o lote {max(lotes)} não cabia)")
+                else:
+                    ok, motivo = porteiro.vaga(precisa_mib, f"Tandera {p}",
+                                               menos_ollama=(tuple(n for n in base.ollama_carregados() if n.startswith("gemma")) if p == "olho" else ()))
                 if not ok:
                     log(f"  ⚠ {p}: {motivo}")
                     rodada.setdefault("avisos", {})[p] = motivo
@@ -88,6 +100,15 @@ def rodar(video, pecas=None, perfil=None, refazer=(), placa=True, idioma=None, p
     log(f"pronto em {rodada['s']:.0f} s · rodou {len(rodada['rodou'])}, guardadas {len(rodada['guardada'])}, falhou {len(rodada['falhou'])}, "
         f"pulou {len(rodada['pulou'])} → {A.pasta}")
     return A
+
+
+def _placa_aberta():
+    """este processo já abriu a placa (contexto CUDA)? 21/11 (Fase 3): a abertura custa ~214 MiB uma vez por processo"""
+    t = sys.modules.get("torch")
+    try:
+        return bool(t and t.cuda.is_initialized())
+    except Exception:
+        return False
 
 
 def _tem_placa():

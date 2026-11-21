@@ -20,6 +20,12 @@ FPS = 2.0
 MAX_PIX = 224 * 224
 PRECISAO_PC = "8bit"         # medido 01/11 no V009 (24 trechos): 8 bits lote 4 = 0,34 s/trecho, placa 8,9 GB no total, cos 0,991 × bf16.
 LOTE_PC = 4                  # bf16 = 0,27 s mas 11,2 GB no total (passa do teto); 4 bits = 0,27 s, 7,1 GB, cos 0,953 (perde retrato)
+# 21/11 (otimização Fase 3, ele: «Otimiza tudo»): com o Premiere aberto o Ovis pedia 7,5 GB, não cabia e a peça inteira ia pro
+# processador (45 s × ~11 s). Agora: sem a cabeça de texto + só o estado final → o lote 4 pede 5,44 GB e CABE (retrato igual bit a
+# bit). Rede de segurança: o porteiro escolhe o MAIOR lote que cabe (manifesto: ovis.lotes_mib) — o 1 e o 2 mudam o retrato um
+# tiquinho em relação ao 4 (o 8 bits mistura o lote; cosseno ~0,997, fase3\ovis\avaliacao.json), menos que o processador. O lote que
+# rodou fica gravado no resultado da peça («lote»). Placa sem nem o lote 1 = processador (como antes, com o aviso).
+LOTES_PC = (4, 2, 1)
 _m = {}
 
 
@@ -40,12 +46,27 @@ def carregar(precisao="bf16", dev="cuda"):
             m = Qwen2_5OmniThinkerForConditionalGeneration.from_pretrained(pasta, **kw).eval()
         else:
             m = Qwen2_5OmniThinkerForConditionalGeneration.from_pretrained(pasta, **kw).to(dev).eval()
+        # 21/11 (otimização Fase 3): a «cabeça de texto» (lm_head, 151.936 × 2.048 em bf16 = 585 MiB) transforma o último estado em
+        # palavras; o retrato é o estado ANTES dela (hidden_states[-1]), então ela só ocupava a placa. Sem ela: retrato IGUAL bit a bit
+        # (estudo\otimizacao-plugins\fase3\ovis\sonda_cabeca.json) e o lote 1 cabe com o Premiere aberto.
+        m.lm_head = torch.nn.Identity()
+        if dev == "cuda":
+            torch.cuda.empty_cache()
         # o extrator de áudio completa todo som até 300 s; o trecho é de 4 s → máximo 5 s (medido 30/10: retrato idêntico, cos = 1,0)
         fe = proc.feature_extractor
         fe.chunk_length = 5; fe.n_samples = 5 * fe.sampling_rate; fe.nb_max_frames = fe.n_samples // fe.hop_length
         proc.tokenizer.padding_side = "left"
         _m.clear(); _m[k] = (proc, m, dev)
     return _m[k]
+
+
+def _estado_final(o, m):
+    """21/11 (Fase 3): o retrato = o estado final (depois da última normalização) do último token. Antes pedia «os estados de TODAS
+    as camadas» (output_hidden_states) e usava o último: 37 cópias do lote presas na placa até o fim (lote 4: +0,9 GB). Sem a cabeça
+    de texto (Identity), a saída do modelo com logits_to_keep=1 É esse estado final — igual bit a bit (fase3\\ovis\\sonda_enxuto)."""
+    import torch
+    assert isinstance(m.lm_head, torch.nn.Identity), "o Ovis precisa estar sem a cabeça de texto (ovis.carregar)"
+    return o.logits
 
 
 def soltar():
@@ -97,8 +118,8 @@ def retratos(trechos, precisao="bf16", lote=4, dev="cuda", log=None):
                  padding=True, use_audio_in_video=True).to(dev)
         for k, v in x.items():
             if torch.is_tensor(v) and v.is_floating_point(): x[k] = v.to(torch.bfloat16)
-        o = m(**x, use_audio_in_video=True, output_hidden_states=True, return_dict=True, logits_to_keep=1)
-        return torch.nn.functional.normalize(o.hidden_states[-1][:, -1].float(), dim=-1).cpu().numpy()
+        o = m(**x, use_audio_in_video=True, return_dict=True, logits_to_keep=1)
+        return torch.nn.functional.normalize(_estado_final(o, m)[:, -1].float(), dim=-1).cpu().numpy()
 
     def seguro(itens):
         try:
@@ -126,14 +147,15 @@ def texto(frases, precisao="bf16", dev="cuda",
         conv = [{"role": "system", "content": [{"type": "text", "text": instrucao}]}, {"role": "user", "content": [{"type": "text", "text": f}]}]
         x = proc(text=proc.apply_chat_template(conv, add_generation_prompt=True, tokenize=False) + "<|endoftext|>", return_tensors="pt", padding=True).to(dev)
         with torch.no_grad():
-            o = m(**x, output_hidden_states=True, return_dict=True, logits_to_keep=1)
-        out.append(torch.nn.functional.normalize(o.hidden_states[-1][0, -1].float(), dim=-1).cpu().numpy())
+            o = m(**x, return_dict=True, logits_to_keep=1)
+        out.append(torch.nn.functional.normalize(_estado_final(o, m)[0, -1].float(), dim=-1).cpu().numpy())
     return np.stack(out)
 
 
 def _precisao_lote(ctx):
+    """precisão e lote: a mão (TANDERA_OVIS_*) > o lote que o porteiro escolheu pelo que cabe (ctx.ovis_lote, motor.py) > o padrão"""
     return (os.environ.get("TANDERA_OVIS_PRECISAO") or (PRECISAO_PC if ctx.perfil == "pc" else "bf16"),
-            int(os.environ.get("TANDERA_OVIS_LOTE") or (LOTE_PC if ctx.perfil == "pc" else 16)))
+            int(os.environ.get("TANDERA_OVIS_LOTE") or getattr(ctx, "ovis_lote", None) or (LOTE_PC if ctx.perfil == "pc" else 16)))
 
 
 def aquecer(ctx):

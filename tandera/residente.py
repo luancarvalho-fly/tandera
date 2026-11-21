@@ -192,12 +192,12 @@ def _quentes():
         ("texto OCR", 860, False, seg("ocr"), largar("ocr")),
         ("corpo", 1000, None, corpo_tem, corpo_solta),
         ("busca Qwen3", 5170, None, busca_tem, busca_solta),
-        ("Ovis", 5271, None, ovis_tem, ovis_solta),
+        ("Ovis", 4680, None, ovis_tem, ovis_solta),          # 21/11 (Fase 3): sem a cabeça de texto (−585 MiB; era 5.271)
     ]
 
 
 def _grandes_soltar(rodou=()):
-    """os grandes nunca ficam: Ovis (5,3 GB), busca (Qwen3 8B), corpo; e o Gemma do olho (~9 GB, no Ollama) se o olho rodou"""
+    """os grandes nunca ficam: Ovis (4,7 GB), busca (Qwen3 8B), corpo; e o Gemma do olho (~9 GB, no Ollama) se o olho rodou"""
     _soltar([n for n, _, peq, tem, _ in _quentes() if peq is None and tem()], "grande: não fica quente")
     if "olho" in rodou:
         try:

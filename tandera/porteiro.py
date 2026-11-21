@@ -25,6 +25,7 @@ MEDIDOR_DIR = os.environ.get("TANDERA_MEDIDOR") or ""   # pacote da Fly: o MEDID
 OLLAMA = os.environ.get("TANDERA_OLLAMA") or "http://127.0.0.1:11434/api"
 MARGEM_MIB = 700            # folga: o Windows, o navegador e o desenho da tela variam ~0,5 GB de um segundo pro outro
 PULO_PREMIERE_MIB = 5200    # o Premiere aberto e parado pula +5,1 GB de uma vez quando ele dá play (fase0\vram\RELATORIO.md)
+ABRIR_PLACA_MIB = 214       # 21/11: abrir a placa num processo novo (contexto CUDA + cuBLAS), medido (fase3\ovis\contexto_cuda.txt)
 OLLAMA_DO_DITADO = ("qwen2.5:7b",)   # o modelo que o ditado (OpenWhispr) usa pra limpar o texto: só sai se não tiver outro jeito
 SEM_JANELA = 0x08000000 if os.name == "nt" else 0
 _trava = threading.Lock()
@@ -179,22 +180,47 @@ def vaga(mib, quem, espera_s=20, menos_ollama=()):
     """o pedido de `mib` MiB cabe na placa agora? Se não: (1) solta os nossos quentes e o Ollama parado, (2) solta também o modelo do
     ditado no Ollama (ele recarrega sozinho no próximo ditado em ~2 s — o Tandera antigo soltava esse modelo antes de TODA peça),
     (3) espera até espera_s outro trabalho terminar. Medido 20/11 17:55: esperar antes de soltar o do ditado custava ~24 s por peça.
-    Devolve (True, motivo) → placa · (False, motivo) → processador; o motivo é a frase pra tela da ferramenta."""
-    mib = int(max(mib, 0))
+    Devolve (True, motivo) → placa · (False, motivo) → processador; o motivo é a frase pra tela da ferramenta.
+    (21/11: é o vaga_escolhe com uma opção só — mesmo passo a passo e mesmo registro de antes.)"""
+    ok, motivo, _ = vaga_escolhe([(mib, None)], quem, espera_s=espera_s, menos_ollama=menos_ollama)
+    return ok, motivo
+
+
+def vaga_escolhe(opcoes, quem, espera_s=20, menos_ollama=()):
+    """21/11 (otimização Fase 3, ele: «Otimiza tudo»): a peça que pode rodar em TAMANHOS diferentes (o Ovis: lote 4, 2 ou 1) diz
+    quanto cada um pede — `opcoes` = [(MiB, valor), ...] — e o porteiro devolve o MAIOR que cabe, sem nunca ir pro processador se o
+    menor couber. Passo a passo (o mesmo do vaga):
+    0) o maior cabe agora → ele;
+    1) não cabe → solta os nossos quentes e o Ollama parado (o que faltar pro MAIOR) → o maior que couber;
+    2) nem o MENOR coube → solta também o modelo do ditado (só por isso: não tira o ditado pra ganhar lote) → o maior que couber;
+    3) ainda nada → espera até espera_s outro trabalho terminar (pelo menor);
+    nada → processador, com o aviso. Devolve (True, motivo, valor) · (False, motivo, None)."""
+    opcoes = sorted([(int(max(m, 0)), val) for m, val in opcoes], key=lambda o: -o[0])
+    maior, menor = opcoes[0][0], opcoes[-1][0]
     if escondida():
-        return False, "quem chamou pediu o processador"
+        return False, "quem chamou pediu o processador", None
     if fundo() and not liberada_pro_fundo():
-        return False, f"trabalho de fundo com o Premiere {premiere()} (regra 9: a placa é dele enquanto ele edita)"
+        return False, f"trabalho de fundo com o Premiere {premiere()} (regra 9: a placa é dele enquanto ele edita)", None
+
+    def melhor(v):
+        for m, val in opcoes:
+            if v and v["livre"] - MARGEM_MIB >= m:
+                return m, val
+        return None
+
+    def txt(m, val):
+        return f"{m} MiB" + (f" (lote {val}; o maior pedia {maior})" if val is not None and m != maior else "")
+
     with _trava:
         v = vram()
         if v is None:
-            return False, "sem placa NVIDIA nesta máquina"
-        prem = premiere() if v["livre"] - MARGEM_MIB < mib else "—"
-        if v["livre"] - MARGEM_MIB >= mib:
-            _anota(f"placa · {quem} · pede {mib} MiB · livre {v['livre']} de {v['total']}")
-            return True, f"na placa ({v['livre'] / 1024:.1f} GB livres)"
+            return False, "sem placa NVIDIA nesta máquina", None
+        b = melhor(v)
+        if b and b[0] == maior:
+            _anota(f"placa · {quem} · pede {maior} MiB · livre {v['livre']} de {v['total']}")
+            return True, f"na placa ({v['livre'] / 1024:.1f} GB livres)", b[1]
         t0 = time.monotonic()
-        falta = mib + MARGEM_MIB - v["livre"]
+        falta = maior + MARGEM_MIB - v["livre"]
         global pedindo
         pedindo = quem                                      # o motor quente não solta o modelo de quem está pedindo
         for f in list(_SOLTADORES):                         # 1) os nossos quentes (motor residente, quando é ele que pede)
@@ -207,21 +233,25 @@ def vaga(mib, quem, espera_s=20, menos_ollama=()):
         except Exception:
             pass
         soltos = soltar_ollama(menos=menos_ollama)          #    e o Ollama parado que não é o do ditado
-        ok = _espera_caber(mib, 1.5 if (soltos or _SOLTADORES or remoto) else 0)
-        if not ok:                                          # 2) o do ditado também
+        ok = _espera_caber(maior, 1.5 if (soltos or _SOLTADORES or remoto) else 0)
+        b = melhor(ok or vram())
+        if not b:                                           # 2) nem o menor coube: o do ditado também
             soltos += soltar_ollama(ate_o_do_ditado=True, menos=menos_ollama)
-            ok = _espera_caber(mib, 1.5 if soltos else 0)
-        if not ok:                                          # 3) outro trabalho na placa: espera um pouco ele terminar
-            ok = _espera_caber(mib, espera_s)
-        if ok:
-            _anota(f"placa · {quem} · pede {mib} MiB · livre {ok['livre']} depois de soltar {soltos or 'nada'} ({time.monotonic() - t0:.1f} s)")
-            return True, f"na placa ({ok['livre'] / 1024:.1f} GB livres)"
+            ok = _espera_caber(menor, 1.5 if soltos else 0)
+            b = melhor(ok or vram())
+        if not b:                                           # 3) outro trabalho na placa: espera um pouco ele terminar
+            ok = _espera_caber(menor, espera_s)
+            b = melhor(ok or vram()) if ok else None
+        if b:
+            livre = (ok or vram() or v)["livre"]
+            _anota(f"placa · {quem} · pede {txt(*b)} · livre {livre} depois de soltar {soltos or 'nada'} ({time.monotonic() - t0:.1f} s)")
+            return True, f"na placa ({livre / 1024:.1f} GB livres)" + (f" · lote {b[1]}" if b[1] is not None and b[0] != maior else ""), b[1]
         v = vram() or v
         prem = premiere()
-        motivo = (f"placa sem memória agora (precisa {mib / 1024:.1f} GB, livres {max(v['livre'] - MARGEM_MIB, 0) / 1024:.1f} GB; "
+        motivo = (f"placa sem memória agora (precisa {menor / 1024:.1f} GB, livres {max(v['livre'] - MARGEM_MIB, 0) / 1024:.1f} GB; "
                   f"Premiere {prem}) — rodando no PROCESSADOR, mais lento")
         _anota(f"PROCESSADOR · {quem} · {motivo}")
-        return False, motivo
+        return False, motivo, None
 
 
 def folga_pra_segurar():

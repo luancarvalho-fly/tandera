@@ -35,7 +35,7 @@ PECAS = {
     "fala": dict(
         o_que="fala com tempo de cada palavra no milissegundo",
         modelo="Whisper large-v3-turbo (faster-whisper fp16; sem VAD; só os trechos COM SOM pela energia RELATIVA; sem herdar o texto do trecho anterior; filtro de laço) + MMS_FA (torchaudio) + conferência na onda",
-        versao="2026-11-01c", onde="placa", depende=["separacao"], perfis=["pc", "servidor"], vram_gb=3.5),   # 20/11: Whisper + MMS juntos +3,48 medido (era 2,5)
+        versao="2026-11-20", onde="placa", depende=["separacao"], perfis=["pc", "servidor"], vram_gb=3.5),   # 20/11: Whisper + MMS juntos +3,48 medido (era 2,5)
     "entonacao": dict(
         o_que="altura da voz no começo/fim de cada trecho, final (sobe/desce), sílabas por segundo",
         modelo="Praat (parselmouth)", versao="2026-10-18", onde="cpu", depende=["separacao", "fala"], perfis=["pc", "servidor"], vram_gb=0),
@@ -90,7 +90,14 @@ PECAS = {
     "ovis": dict(
         o_que="retrato vídeo+som de cada trecho de 4 s (a fundação da busca)",
         modelo="Ovis-Omni-Embedding-3B (ATH-MaaS), trechos de 4 s — PC: 8 bits lote 4 (medido); servidor: bf16 lote 16", versao="2026-11-01",
-        onde="placa", depende=["preparo"], perfis=["pc", "servidor"], vram_gb=7.5),   # 20/11: medido +7,45 (era 5,9: o porteiro deixava entrar sem caber)
+        onde="placa", depende=["preparo"], perfis=["pc", "servidor"], vram_gb=5.1,   # 20/11: medido +7,45 (era 5,9: o porteiro deixava entrar sem caber)
+        # 21/11 (Fase 3, «Otimiza tudo»): sem a cabeça de texto e só o estado final (retrato IGUAL bit a bit) o lote 4 caiu de 7,85 pra
+        # 5,44 GB e cabe com o Premiere aberto e parado. O porteiro escolhe o MAIOR lote que cabe (rede de segurança: o 1 e o 2 mudam o
+        # retrato um tiquinho, cos ~0,997). MiB = pico num processo novo (fase3\ovis\medida_final.json: 5.439 / 5.429 / 5.423) MENOS a
+        # abertura da placa (214 MiB, fase3\ovis\contexto_cuda.txt), que o processo do Tandera já tem quando chega no Ovis — com ela
+        # o porteiro pedia 3 MiB a mais do que sobrava e mandou pro processador (fase3\tandera_aberto_final). O motor soma de volta
+        # quando a placa ainda não foi aberta no processo.
+        lotes_mib={4: 5240, 2: 5230, 1: 5220}),
     "som": dict(
         o_que="retrato do som em janelas de 5 s a cada 2,5 s (som parecido, busca por frase em inglês)",
         modelo="CLAP laion/larger_clap_general", versao="2026-11-01", onde="placa", depende=["preparo"],
@@ -121,6 +128,7 @@ TROCAS = [
     ("cortes", "histograma do Tandera de agosto (perdia 17 de 59 no V009)", "AutoShot + TransNetV2"),
     ("fala", "whisper-server 8178 / large-v3", "large-v3-turbo (empatou com o large-v3 em 31/10: 18,0 × 17,8 de erro) + MMS no ms"),
     ("fala", "2026-11-01: VAD + corte de energia em −40 dB absoluto (comia fala de microfone baixo: 304 palavras)", "2026-11-01b: sem VAD, energia relativa ao arquivo (421 palavras na mesma sessão do Kakashi)"),
+    ("fala", "2026-11-01c: número falado («90») sumia da legenda (o alinhador só conhece letras); acento perdido", "2026-11-20: o número vira o que se fala só pro alinhador, a palavra devolvida é a do Whisper; refaz pela fila da noite (ele, 21/11: «Sim»)"),
     ("rostos", "YuNet + SFace/ArcFace/FaceNet + HSEmotion (catálogo antigo); OpenFace só pra boca", "SCRFD (+30% rostos) + AdaFace (95% × 79%)"),
     ("texto", "PP-OCRv6 no RapidOCR (processador) / RapidOCR do catálogo", "PaddleOCR 3.7 na placa (67% × 50%)"),
     ("olho", "qwen2.5vl:7b (agosto) / Qwen3-VL 8B", "Gemma 4 12B (8/10)"),
